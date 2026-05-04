@@ -4,6 +4,7 @@ import { supabase } from './client';
 const GAME_CODE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const GAME_CODE_LENGTH = 4;
 const MAX_CREATE_GAME_ATTEMPTS = 10;
+const COUNTDOWN_LEAD_MS = 10_000;
 
 function generateGameCode() {
   let code = '';
@@ -119,17 +120,38 @@ export async function startGame(gameId) {
     throw new Error('Game ID is required.');
   }
 
+  const countdownStartAt = new Date(Date.now() + COUNTDOWN_LEAD_MS).toISOString();
+
   const updateResult = await supabase
     .from('boggle_games')
     .update({
-      started_at: new Date().toISOString(),
-      status: 'playing',
+      started_at: countdownStartAt,
+      status: 'countdown',
     })
     .eq('id', normalizedGameId)
     .select('*')
     .single();
 
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to start game');
+}
+
+export async function activateGame(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update({
+      status: 'playing',
+    })
+    .eq('id', normalizedGameId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to activate game');
 }
 
 export async function submitWords(playerId, words) {

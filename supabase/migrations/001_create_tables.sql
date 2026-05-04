@@ -7,7 +7,7 @@ create table if not exists public.boggle_games (
   board_size integer not null check (board_size > 0),
   started_at timestamptz not null default now(),
   duration_seconds integer not null default 180 check (duration_seconds > 0),
-  status text not null default 'waiting' check (status in ('waiting', 'playing'))
+  status text not null default 'waiting' check (status in ('waiting', 'countdown', 'playing', 'finished'))
 );
 
 create index if not exists boggle_games_game_code_idx on public.boggle_games (game_code);
