@@ -1,18 +1,18 @@
 function Lobby({ gameCode, players, canStart, onStartGame }) {
   return (
-    <section style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-      <p style={{ margin: 0, fontSize: '0.95rem', color: '#475569' }}>Share code</p>
-      <h2 style={{ margin: '0.25rem 0 1rem', letterSpacing: '0.15em' }}>{gameCode || '----'}</h2>
+    <section className="rounded-xl border border-slate-200 p-4">
+      <p className="m-0 text-[0.95rem] text-slate-600">Share code</p>
+      <h2 className="mb-4 mt-1 tracking-[0.15em]">{gameCode || '----'}</h2>
 
-      <h3 style={{ marginBottom: '0.5rem' }}>Players ({players.length})</h3>
-      <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+      <h3 className="mb-2">Players ({players.length})</h3>
+      <ul className="m-0 pl-5">
         {players.map((player) => (
           <li key={player.id}>{player.display_name}</li>
         ))}
       </ul>
 
       {canStart ? (
-        <button type="button" onClick={onStartGame} style={{ marginTop: '1rem' }}>
+        <button type="button" onClick={onStartGame} className="mt-4">
           Start Game
         </button>
       ) : null}

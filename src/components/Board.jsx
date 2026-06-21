@@ -6,16 +6,14 @@ function Board({ board, size, status, countdownRemaining }) {
   const isCountdown = status === 'countdown'
 
   return (
-    <section style={{ position: 'relative' }}>
+    <section className="relative">
       <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${size}, minmax(2.25rem, 1fr))`,
-          gap: '0.45rem',
-          filter: isCountdown ? 'blur(4px)' : 'none',
-          opacity: isCountdown ? 0.58 : 1,
-          transition: 'filter 200ms ease, opacity 200ms ease',
-        }}
+        className={
+          isCountdown
+            ? 'grid gap-[0.45rem] blur-[4px] opacity-[0.58] transition-[filter,opacity] duration-200 ease-in-out'
+            : 'grid gap-[0.45rem] transition-[filter,opacity] duration-200 ease-in-out'
+        }
+        style={{ gridTemplateColumns: `repeat(${size}, minmax(2.25rem, 1fr))` }}
       >
         {board.map((tile, index) => {
           const normalizedTile = String(tile ?? '').toUpperCase()
@@ -24,17 +22,11 @@ function Board({ board, size, status, countdownRemaining }) {
           return (
             <div
               key={`${normalizedTile}-${index}`}
-              style={{
-                aspectRatio: '1 / 1',
-                borderRadius: 10,
-                border: isSpecialTile ? '2px solid #0284c7' : '1px solid #94a3b8',
-                background: isSpecialTile ? '#e0f2fe' : '#f8fafc',
-                display: 'grid',
-                placeItems: 'center',
-                fontWeight: 700,
-                fontSize: 'clamp(0.8rem, 2.6vw, 1.2rem)',
-                textTransform: 'uppercase',
-              }}
+              className={
+                isSpecialTile
+                  ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-sky-600 bg-sky-100 text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase'
+                  : 'grid aspect-square place-items-center rounded-[10px] border border-slate-400 bg-slate-50 text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase'
+              }
             >
               {normalizedTile}
             </div>
@@ -43,18 +35,7 @@ function Board({ board, size, status, countdownRemaining }) {
       </div>
 
       {isCountdown && countdownRemaining > 0 ? (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 'clamp(1.8rem, 5.6vw, 3.1rem)',
-            fontWeight: 800,
-            color: '#0f172a',
-            pointerEvents: 'none',
-          }}
-        >
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.8rem,5.6vw,3.1rem)] font-extrabold text-slate-900 [font-variant-numeric:tabular-nums]">
           {countdownRemaining}
         </div>
       ) : null}

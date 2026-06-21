@@ -137,36 +137,32 @@ function WordInput({
   const disabled = status !== 'playing'
 
   return (
-    <section style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-      <h3 style={{ marginTop: 0 }}>Find Words</h3>
+    <section className="rounded-xl border border-slate-200 p-4">
+      <h3 className="mt-0">Find Words</h3>
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
         <input
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Type a word"
           disabled={disabled}
+          className="min-w-[180px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
         />
         <button type="submit" disabled={disabled}>
           Submit
         </button>
       </form>
 
-      {errorMessage ? <p style={{ color: '#b91c1c' }}>{errorMessage}</p> : null}
+      {errorMessage ? <p className="mt-2 text-red-700">{errorMessage}</p> : null}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.75rem' }}>
+      <div className="mt-3 flex flex-wrap gap-2">
         {wordsFound.map((word) => (
           <button
             key={word}
             type="button"
             onClick={() => onRemoveWord(word)}
             disabled={disabled}
-            style={{
-              border: '1px solid #cbd5e1',
-              borderRadius: 999,
-              background: '#f8fafc',
-              padding: '0.25rem 0.65rem',
-            }}
+            className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             title="Remove word"
           >
             {word}

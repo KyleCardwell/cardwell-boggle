@@ -338,12 +338,18 @@ function GamePage() {
   const showResults = game.status === 'finished'
 
   return (
-    <main style={{ maxWidth: 1140, margin: '0 auto', padding: '1.5rem', display: 'grid', gap: '1rem' }}>
-      <h1 style={{ margin: 0 }}>Game {game.gameCode || normalizedGameCode}</h1>
+    <main className="mx-auto grid max-w-[1140px] gap-4 p-6">
+      <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
 
-      <div className={`game-layout ${showBoard ? 'game-layout--with-board' : ''}`}>
+      <div
+        className={
+          showBoard
+            ? 'grid gap-4 lg:[grid-template-columns:minmax(0,60%)_minmax(0,40%)] lg:items-start'
+            : 'grid gap-4'
+        }
+      >
         {showBoard ? (
-          <section className="game-layout__board">
+          <section className="min-w-0">
             <Board
               board={game.board}
               size={game.boardSize}
@@ -353,7 +359,7 @@ function GamePage() {
           </section>
         ) : null}
 
-        <section className="game-layout__side">
+        <section className="grid min-w-0 content-start gap-4">
           <Timer
             status={game.status}
             countdownRemaining={game.countdownRemaining}

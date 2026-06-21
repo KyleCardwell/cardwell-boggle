@@ -30,17 +30,7 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
 
   if (status === 'countdown' && countdownRemaining > 0) {
     return (
-      <section
-        style={{
-          border: '1px solid #e2e8f0',
-          borderRadius: 12,
-          padding: '1rem',
-          textAlign: 'center',
-          fontSize: '2rem',
-          fontWeight: 700,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
+      <section className="rounded-xl border border-slate-200 p-4 text-center text-[2rem] font-bold [font-variant-numeric:tabular-nums]">
         Game starts in {countdownRemaining}...
       </section>
     )
@@ -48,17 +38,7 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
 
   if (status === 'playing') {
     return (
-      <section
-        style={{
-          border: '1px solid #e2e8f0',
-          borderRadius: 12,
-          padding: '1rem',
-          textAlign: 'center',
-          fontSize: '1.6rem',
-          fontWeight: 700,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
+      <section className="rounded-xl border border-slate-200 p-4 text-center text-[1.6rem] font-bold [font-variant-numeric:tabular-nums]">
         Time Remaining: {formatSeconds(timeRemaining)}
       </section>
     )

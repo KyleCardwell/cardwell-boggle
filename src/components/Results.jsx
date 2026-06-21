@@ -28,26 +28,20 @@ function Results({ players, allWords, onPlayAgain }) {
   const groupedAllWords = groupWordsByLength(allWords)
 
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-        <h2 style={{ marginTop: 0 }}>Results</h2>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '1rem',
-          }}
-        >
+    <section className="grid gap-4">
+      <div className="rounded-xl border border-slate-200 p-4">
+        <h2 className="mt-0">Results</h2>
+        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
           {players.map((player) => {
             const words = Array.isArray(player.words_found) ? player.words_found : []
             const score = scoreWords(words)
 
             return (
-              <article key={player.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem' }}>
-                <h3 style={{ marginTop: 0 }}>{player.display_name}</h3>
-                <p style={{ margin: '0 0 0.5rem' }}>Score: {score}</p>
-                <div style={{ maxHeight: '11rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
-                  <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+              <article key={player.id} className="rounded-[10px] border border-slate-200 p-3">
+                <h3 className="mt-0">{player.display_name}</h3>
+                <p className="mb-2">Score: {score}</p>
+                <div className="max-h-44 overflow-y-auto pr-1.5">
+                  <ul className="m-0 pl-5">
                     {words.map((word) => (
                       <li key={`${player.id}-${word}`}>{word}</li>
                     ))}
@@ -59,19 +53,19 @@ function Results({ players, allWords, onPlayAgain }) {
         </div>
       </div>
 
-      <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-        <h3 style={{ marginTop: 0 }}>All Possible Words ({allWords.length})</h3>
-        <div style={{ maxHeight: '16rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
+      <div className="rounded-xl border border-slate-200 p-4">
+        <h3 className="mt-0">All Possible Words ({allWords.length})</h3>
+        <div className="max-h-64 overflow-y-auto pr-1.5">
           {groupedAllWords.map(([length, words]) => (
-            <div key={length} style={{ marginBottom: '0.75rem' }}>
-              <p style={{ margin: '0 0 0.35rem', fontWeight: 600 }}>{length} letters</p>
-              <p style={{ margin: 0, color: '#334155' }}>{words.join(', ')}</p>
+            <div key={length} className="mb-3">
+              <p className="mb-1.5 font-semibold">{length} letters</p>
+              <p className="m-0 text-slate-700">{words.join(', ')}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <button type="button" onClick={onPlayAgain} style={{ justifySelf: 'start' }}>
+      <button type="button" onClick={onPlayAgain} className="justify-self-start">
         Play Again
       </button>
     </section>

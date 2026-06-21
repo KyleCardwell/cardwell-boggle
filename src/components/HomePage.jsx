@@ -84,28 +84,25 @@ function HomePage() {
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1rem' }}>
-      <h1 style={{ marginBottom: '1.5rem' }}>Cardwell Boggle</h1>
+    <main className="mx-auto max-w-[960px] px-4 py-8">
+      <h1 className="mb-6">Cardwell Boggle</h1>
 
       {errorMessage ? (
-        <p style={{ color: '#b91c1c', marginBottom: '1rem' }}>{errorMessage}</p>
+        <p className="mb-4 text-red-700">{errorMessage}</p>
       ) : null}
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '1rem',
-        }}
-      >
-        <section style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-          <h2 style={{ marginTop: 0 }}>New Game</h2>
-          <form onSubmit={handleCreateGame} style={{ display: 'grid', gap: '0.75rem' }}>
-            <label htmlFor="new-board-size">Board Size</label>
+      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
+        <section className="rounded-xl border border-slate-200 p-4">
+          <h2 className="mt-0">New Game</h2>
+          <form onSubmit={handleCreateGame} className="grid gap-3">
+            <label htmlFor="new-board-size" className="text-sm font-medium text-slate-700">
+              Board Size
+            </label>
             <select
               id="new-board-size"
               value={newBoardSize}
               onChange={(event) => setNewBoardSize(Number(event.target.value))}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
             >
               {BOARD_SIZES.map((size) => (
                 <option key={size} value={size}>
@@ -114,13 +111,16 @@ function HomePage() {
               ))}
             </select>
 
-            <label htmlFor="new-display-name">Display Name</label>
+            <label htmlFor="new-display-name" className="text-sm font-medium text-slate-700">
+              Display Name
+            </label>
             <input
               id="new-display-name"
               value={newDisplayName}
               onChange={(event) => setNewDisplayName(event.target.value)}
               placeholder="Enter your name"
               maxLength={30}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
             />
 
             <button type="submit" disabled={isSubmitting}>
@@ -129,25 +129,31 @@ function HomePage() {
           </form>
         </section>
 
-        <section style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
-          <h2 style={{ marginTop: 0 }}>Join Game</h2>
-          <form onSubmit={handleJoinGame} style={{ display: 'grid', gap: '0.75rem' }}>
-            <label htmlFor="join-code">Game Code</label>
+        <section className="rounded-xl border border-slate-200 p-4">
+          <h2 className="mt-0">Join Game</h2>
+          <form onSubmit={handleJoinGame} className="grid gap-3">
+            <label htmlFor="join-code" className="text-sm font-medium text-slate-700">
+              Game Code
+            </label>
             <input
               id="join-code"
               value={joinCode}
               onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
               placeholder="ABCD"
               maxLength={4}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
             />
 
-            <label htmlFor="join-display-name">Display Name</label>
+            <label htmlFor="join-display-name" className="text-sm font-medium text-slate-700">
+              Display Name
+            </label>
             <input
               id="join-display-name"
               value={joinDisplayName}
               onChange={(event) => setJoinDisplayName(event.target.value)}
               placeholder="Enter your name"
               maxLength={30}
+              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
             />
 
             <button type="submit" disabled={isSubmitting}>
