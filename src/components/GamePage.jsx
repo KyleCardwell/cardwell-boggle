@@ -50,6 +50,8 @@ function GamePage() {
   const [isPauseModalOpen, setIsPauseModalOpen] = useState(false)
   const [isControllerActionPending, setIsControllerActionPending] = useState(false)
   const [controllerActionError, setControllerActionError] = useState('')
+  const [isPlayAgainPending, setIsPlayAgainPending] = useState(false)
+  const [playAgainError, setPlayAgainError] = useState('')
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
@@ -145,6 +147,11 @@ function GamePage() {
         }
 
         dispatch(setGame(nextGame))
+
+        if (nextGame.status !== 'finished') {
+          setIsPlayAgainPending(false)
+          setPlayAgainError('')
+        }
 
         if (nextGame.status === 'countdown') {
           dispatch(
@@ -308,6 +315,33 @@ function GamePage() {
     })
   }
 
+  const handlePlayAgain = async () => {
+    if (!game.gameId || !isController || isPlayAgainPending) {
+      return
+    }
+
+    setPlayAgainError('')
+    setIsPlayAgainPending(true)
+
+    try {
+      const updatedGame = await restartGame(game.gameId)
+      dispatch(setGame(updatedGame))
+      dispatch(
+        startCountdown({
+          startedAt: updatedGame.started_at,
+          durationSeconds: updatedGame.duration_seconds,
+        }),
+      )
+      dispatch(setAllWords([]))
+      dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
+      dispatch(setScore(0))
+    } catch (error) {
+      setPlayAgainError(error.message || 'Unable to start a new round.')
+    } finally {
+      setIsPlayAgainPending(false)
+    }
+  }
+
   const handleRestartGame = async () => {
     if (!game.gameId) {
       return
@@ -442,6 +476,7 @@ function GamePage() {
   const showWordInput = game.status === 'playing'
   const showPlayerList = game.status !== 'idle' && game.status !== 'finished'
   const showResults = game.status === 'finished'
+  const showPauseNotice = game.status === 'paused'
   const showPauseModal = isPauseModalOpen && isController
 
   return (
@@ -449,17 +484,42 @@ function GamePage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
 
-        {canPauseGame ? (
-          <button
-            type="button"
-            onClick={handlePauseButtonClick}
-            disabled={isControllerActionPending}
-            className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Pause
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canPauseGame ? (
+            <button
+              type="button"
+              onClick={handlePauseButtonClick}
+              disabled={isControllerActionPending}
+              className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Pause
+            </button>
+          ) : null}
+
+          {showResults ? (
+            <button
+              type="button"
+              onClick={handlePlayAgain}
+              disabled={!isController || isPlayAgainPending}
+              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPlayAgainPending
+                ? 'Starting next round...'
+                : isController
+                  ? 'Play Again'
+                  : 'Waiting for host...'}
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {showPauseNotice ? (
+        <p className="m-0 rounded-md border border-teal-500 bg-teal-900 px-3 py-2 text-sm font-medium text-ui-text">
+          Game Paused
+        </p>
+      ) : null}
+
+      {showResults && playAgainError ? <p className="m-0 text-ui-danger">{playAgainError}</p> : null}
 
       <div
         className={
@@ -514,7 +574,6 @@ function GamePage() {
             <Results
               players={game.players}
               allWords={game.allWords}
-              onPlayAgain={() => navigate('/')}
             />
           ) : null}
         </section>

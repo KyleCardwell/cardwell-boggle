@@ -264,6 +264,24 @@ export async function restartGame(gameId) {
     throw new Error('Game ID is required.');
   }
 
+  const gameQuery = await supabase
+    .from('boggle_games')
+    .select('board_size')
+    .eq('id', normalizedGameId)
+    .maybeSingle();
+
+  if (gameQuery.error) {
+    throw new Error(`Failed to load game: ${gameQuery.error.message}`);
+  }
+
+  const boardSize = Number(gameQuery.data?.board_size);
+
+  if (!Number.isInteger(boardSize) || boardSize <= 0) {
+    throw new Error('Unable to restart game: invalid board size.');
+  }
+
+  const board = generateBoard(boardSize);
+
   const playersResetResult = await supabase
     .from('boggle_players')
     .update({
@@ -281,6 +299,7 @@ export async function restartGame(gameId) {
   const updateResult = await supabase
     .from('boggle_games')
     .update({
+      board,
       started_at: countdownStartAt,
       status: 'countdown',
     })

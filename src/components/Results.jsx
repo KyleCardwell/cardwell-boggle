@@ -24,7 +24,10 @@ function groupWordsByLength(words) {
     .sort((a, b) => a[0] - b[0])
 }
 
-function Results({ players, allWords, onPlayAgain }) {
+function Results({
+  players,
+  allWords,
+}) {
   const groupedAllWords = groupWordsByLength(allWords)
 
   return (
@@ -64,14 +67,6 @@ function Results({ players, allWords, onPlayAgain }) {
           ))}
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={onPlayAgain}
-        className="justify-self-start rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
-      >
-        Play Again
-      </button>
     </section>
   )
 }
