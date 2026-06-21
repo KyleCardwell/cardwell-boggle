@@ -137,8 +137,8 @@ function WordInput({
   const disabled = status !== 'playing'
 
   return (
-    <section className="rounded-xl border border-slate-200 p-4">
-      <h3 className="mt-0">Find Words</h3>
+    <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+      <h3 className="mt-0 text-ui-text">Find Words</h3>
 
       <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
         <input
@@ -146,14 +146,18 @@ function WordInput({
           onChange={(event) => setValue(event.target.value)}
           placeholder="Type a word"
           disabled={disabled}
-          className="min-w-[180px] flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+          className="min-w-[180px] flex-1 rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text placeholder:text-ui-muted disabled:cursor-not-allowed disabled:opacity-60"
         />
-        <button type="submit" disabled={disabled}>
+        <button
+          type="submit"
+          disabled={disabled}
+          className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
           Submit
         </button>
       </form>
 
-      {errorMessage ? <p className="mt-2 text-red-700">{errorMessage}</p> : null}
+      {errorMessage ? <p className="mt-2 text-ui-danger">{errorMessage}</p> : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {wordsFound.map((word) => (
@@ -162,7 +166,7 @@ function WordInput({
             type="button"
             onClick={() => onRemoveWord(word)}
             disabled={disabled}
-            className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text disabled:cursor-not-allowed disabled:opacity-60"
             title="Remove word"
           >
             {word}

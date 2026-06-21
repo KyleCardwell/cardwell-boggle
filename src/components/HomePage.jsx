@@ -84,25 +84,25 @@ function HomePage() {
   }
 
   return (
-    <main className="mx-auto max-w-[960px] px-4 py-8">
+    <main className="mx-auto max-w-[960px] px-4 py-8 text-ui-text">
       <h1 className="mb-6">Cardwell Boggle</h1>
 
       {errorMessage ? (
-        <p className="mb-4 text-red-700">{errorMessage}</p>
+        <p className="mb-4 text-ui-danger">{errorMessage}</p>
       ) : null}
 
       <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
-        <section className="rounded-xl border border-slate-200 p-4">
+        <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
           <h2 className="mt-0">New Game</h2>
           <form onSubmit={handleCreateGame} className="grid gap-3">
-            <label htmlFor="new-board-size" className="text-sm font-medium text-slate-700">
+            <label htmlFor="new-board-size" className="text-sm font-medium text-ui-muted">
               Board Size
             </label>
             <select
               id="new-board-size"
               value={newBoardSize}
               onChange={(event) => setNewBoardSize(Number(event.target.value))}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900"
+              className="rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text"
             >
               {BOARD_SIZES.map((size) => (
                 <option key={size} value={size}>
@@ -111,7 +111,7 @@ function HomePage() {
               ))}
             </select>
 
-            <label htmlFor="new-display-name" className="text-sm font-medium text-slate-700">
+            <label htmlFor="new-display-name" className="text-sm font-medium text-ui-muted">
               Display Name
             </label>
             <input
@@ -120,19 +120,23 @@ function HomePage() {
               onChange={(event) => setNewDisplayName(event.target.value)}
               placeholder="Enter your name"
               maxLength={30}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+              className="rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text placeholder:text-ui-muted"
             />
 
-            <button type="submit" disabled={isSubmitting}>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {isSubmitting ? 'Creating...' : 'Create & Join'}
             </button>
           </form>
         </section>
 
-        <section className="rounded-xl border border-slate-200 p-4">
+        <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
           <h2 className="mt-0">Join Game</h2>
           <form onSubmit={handleJoinGame} className="grid gap-3">
-            <label htmlFor="join-code" className="text-sm font-medium text-slate-700">
+            <label htmlFor="join-code" className="text-sm font-medium text-ui-muted">
               Game Code
             </label>
             <input
@@ -141,10 +145,10 @@ function HomePage() {
               onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
               placeholder="ABCD"
               maxLength={4}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+              className="rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text placeholder:text-ui-muted"
             />
 
-            <label htmlFor="join-display-name" className="text-sm font-medium text-slate-700">
+            <label htmlFor="join-display-name" className="text-sm font-medium text-ui-muted">
               Display Name
             </label>
             <input
@@ -153,10 +157,14 @@ function HomePage() {
               onChange={(event) => setJoinDisplayName(event.target.value)}
               placeholder="Enter your name"
               maxLength={30}
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+              className="rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text placeholder:text-ui-muted"
             />
 
-            <button type="submit" disabled={isSubmitting}>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {isSubmitting ? 'Joining...' : 'Join Game'}
             </button>
           </form>

@@ -317,14 +317,18 @@ function GamePage() {
   }, [game.status])
 
   if (isLoading) {
-    return <main style={{ padding: '1.5rem' }}>Loading game...</main>
+    return <main className="p-6 text-ui-text">Loading game...</main>
   }
 
   if (loadingError) {
     return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '1.5rem' }}>
-        <p style={{ color: '#b91c1c' }}>{loadingError}</p>
-        <button type="button" onClick={() => navigate('/')}>
+      <main className="mx-auto grid max-w-[720px] gap-4 p-6 text-ui-text">
+        <p className="text-ui-danger">{loadingError}</p>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="justify-self-start rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
+        >
           Back Home
         </button>
       </main>
@@ -338,7 +342,7 @@ function GamePage() {
   const showResults = game.status === 'finished'
 
   return (
-    <main className="mx-auto grid max-w-[1140px] gap-4 p-6">
+    <main className="mx-auto grid max-w-[1140px] gap-4 p-6 text-ui-text">
       <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
 
       <div

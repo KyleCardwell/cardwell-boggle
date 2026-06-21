@@ -1,7 +1,7 @@
 function Lobby({ gameCode, players, canStart, onStartGame }) {
   return (
-    <section className="rounded-xl border border-slate-200 p-4">
-      <p className="m-0 text-[0.95rem] text-slate-600">Share code</p>
+    <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+      <p className="m-0 text-[0.95rem] text-ui-muted">Share code</p>
       <h2 className="mb-4 mt-1 tracking-[0.15em]">{gameCode || '----'}</h2>
 
       <h3 className="mb-2">Players ({players.length})</h3>
@@ -12,7 +12,11 @@ function Lobby({ gameCode, players, canStart, onStartGame }) {
       </ul>
 
       {canStart ? (
-        <button type="button" onClick={onStartGame} className="mt-4">
+        <button
+          type="button"
+          onClick={onStartGame}
+          className="mt-4 rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
+        >
           Start Game
         </button>
       ) : null}

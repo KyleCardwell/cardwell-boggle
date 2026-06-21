@@ -29,7 +29,7 @@ function Results({ players, allWords, onPlayAgain }) {
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-xl border border-slate-200 p-4">
+      <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
         <h2 className="mt-0">Results</h2>
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
           {players.map((player) => {
@@ -37,7 +37,7 @@ function Results({ players, allWords, onPlayAgain }) {
             const score = scoreWords(words)
 
             return (
-              <article key={player.id} className="rounded-[10px] border border-slate-200 p-3">
+              <article key={player.id} className="rounded-[10px] border border-ui-border bg-ui-surface-alt p-3">
                 <h3 className="mt-0">{player.display_name}</h3>
                 <p className="mb-2">Score: {score}</p>
                 <div className="max-h-44 overflow-y-auto pr-1.5">
@@ -53,19 +53,23 @@ function Results({ players, allWords, onPlayAgain }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 p-4">
+      <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
         <h3 className="mt-0">All Possible Words ({allWords.length})</h3>
         <div className="max-h-64 overflow-y-auto pr-1.5">
           {groupedAllWords.map(([length, words]) => (
             <div key={length} className="mb-3">
               <p className="mb-1.5 font-semibold">{length} letters</p>
-              <p className="m-0 text-slate-700">{words.join(', ')}</p>
+              <p className="m-0 text-ui-muted">{words.join(', ')}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <button type="button" onClick={onPlayAgain} className="justify-self-start">
+      <button
+        type="button"
+        onClick={onPlayAgain}
+        className="justify-self-start rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
+      >
         Play Again
       </button>
     </section>

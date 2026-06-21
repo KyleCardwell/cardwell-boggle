@@ -1,6 +1,6 @@
 function PlayerList({ players }) {
   return (
-    <section className="rounded-xl border border-slate-200 p-4">
+    <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
       <h3 className="mt-0">Players</h3>
       <ul className="m-0 pl-5">
         {players.map((player) => {

@@ -24,8 +24,8 @@ function Board({ board, size, status, countdownRemaining }) {
               key={`${normalizedTile}-${index}`}
               className={
                 isSpecialTile
-                  ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-sky-600 bg-sky-100 text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase'
-                  : 'grid aspect-square place-items-center rounded-[10px] border border-slate-400 bg-slate-50 text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase'
+                  ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-die text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase text-ui-die-text'
+                  : 'grid aspect-square place-items-center rounded-[10px] border border-ui-border bg-ui-die text-[clamp(0.8rem,2.6vw,1.2rem)] font-bold uppercase text-ui-die-text'
               }
             >
               {normalizedTile}
@@ -35,7 +35,7 @@ function Board({ board, size, status, countdownRemaining }) {
       </div>
 
       {isCountdown && countdownRemaining > 0 ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.8rem,5.6vw,3.1rem)] font-extrabold text-slate-900 [font-variant-numeric:tabular-nums]">
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.8rem,5.6vw,3.1rem)] font-extrabold text-ui-text [font-variant-numeric:tabular-nums]">
           {countdownRemaining}
         </div>
       ) : null}
