@@ -198,6 +198,99 @@ export async function activateGame(gameId) {
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to activate game');
 }
 
+export async function pauseGame(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update({
+      status: 'paused',
+    })
+    .eq('id', normalizedGameId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to pause game');
+}
+
+export async function resumeGame(gameId, { resumeStatus, remainingSeconds, durationSeconds }) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  if (resumeStatus !== 'countdown' && resumeStatus !== 'playing') {
+    throw new Error('Resume status must be countdown or playing.');
+  }
+
+  const normalizedRemainingSeconds = Math.max(0, Number(remainingSeconds) || 0);
+  const normalizedDurationSeconds = Number(durationSeconds);
+  const updatePayload = {
+    status: resumeStatus,
+  };
+
+  if (resumeStatus === 'countdown') {
+    const countdownStartAt = new Date(Date.now() + (normalizedRemainingSeconds * 1000)).toISOString();
+    updatePayload.started_at = countdownStartAt;
+  } else {
+    if (!Number.isInteger(normalizedDurationSeconds) || normalizedDurationSeconds <= 0) {
+      throw new Error('Duration is required to resume a playing game.');
+    }
+
+    const elapsedSeconds = Math.max(0, normalizedDurationSeconds - normalizedRemainingSeconds);
+    const startedAt = new Date(Date.now() - (elapsedSeconds * 1000)).toISOString();
+    updatePayload.started_at = startedAt;
+  }
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update(updatePayload)
+    .eq('id', normalizedGameId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to resume game');
+}
+
+export async function restartGame(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const playersResetResult = await supabase
+    .from('boggle_players')
+    .update({
+      words_found: [],
+      score: 0,
+    })
+    .eq('game_id', normalizedGameId);
+
+  if (playersResetResult.error) {
+    throw new Error(`Failed to reset player words: ${playersResetResult.error.message}`);
+  }
+
+  const countdownStartAt = new Date(Date.now() + COUNTDOWN_LEAD_MS).toISOString();
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update({
+      started_at: countdownStartAt,
+      status: 'countdown',
+    })
+    .eq('id', normalizedGameId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to restart game');
+}
+
 export async function submitWords(playerId, words) {
   const normalizedPlayerId = String(playerId ?? '').trim();
 

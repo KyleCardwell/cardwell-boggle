@@ -12,6 +12,9 @@ import {
   endGame,
   getGameByCode,
   getPlayersByGameId,
+  pauseGame,
+  restartGame,
+  resumeGame,
   startGame,
   submitWords,
   subscribeToGame,
@@ -44,9 +47,13 @@ function GamePage() {
   const [dictionary, setDictionary] = useState(null)
   const [loadingError, setLoadingError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
+  const [isPauseModalOpen, setIsPauseModalOpen] = useState(false)
+  const [isControllerActionPending, setIsControllerActionPending] = useState(false)
+  const [controllerActionError, setControllerActionError] = useState('')
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
+  const pauseSourceStatusRef = useRef(null)
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
 
@@ -62,6 +69,8 @@ function GamePage() {
 
   const canStart =
     game.status === 'waiting' && game.players.length >= 1 && player.playerId && player.playerId === hostId
+  const isController = Boolean(player.playerId && player.playerId === hostId)
+  const canPauseGame = isController && (game.status === 'countdown' || game.status === 'playing')
 
   useEffect(() => {
     let cancelled = false
@@ -240,6 +249,99 @@ function GamePage() {
     )
   }
 
+  const runControllerAction = async (action) => {
+    if (isControllerActionPending) {
+      return
+    }
+
+    setControllerActionError('')
+    setIsControllerActionPending(true)
+
+    try {
+      await action()
+    } catch (error) {
+      setControllerActionError(error.message || 'Unable to update game state.')
+    } finally {
+      setIsControllerActionPending(false)
+    }
+  }
+
+  const handlePauseButtonClick = async () => {
+    if (!game.gameId || !canPauseGame) {
+      return
+    }
+
+    pauseSourceStatusRef.current = game.status
+    setIsPauseModalOpen(true)
+
+    await runControllerAction(async () => {
+      await pauseGame(game.gameId)
+    })
+  }
+
+  const handleResumeGame = async () => {
+    if (!game.gameId || game.status !== 'paused') {
+      return
+    }
+
+    const resumeStatus =
+      pauseSourceStatusRef.current === 'countdown' || pauseSourceStatusRef.current === 'playing'
+        ? pauseSourceStatusRef.current
+        : game.timeRemaining > 0
+          ? 'playing'
+          : 'countdown'
+
+    const remainingSeconds =
+      resumeStatus === 'countdown'
+        ? Math.max(1, Number(game.countdownRemaining) || 0)
+        : Math.max(1, Number(game.timeRemaining) || 0)
+
+    await runControllerAction(async () => {
+      await resumeGame(game.gameId, {
+        resumeStatus,
+        remainingSeconds,
+        durationSeconds: game.durationSeconds,
+      })
+
+      setIsPauseModalOpen(false)
+      pauseSourceStatusRef.current = null
+    })
+  }
+
+  const handleRestartGame = async () => {
+    if (!game.gameId) {
+      return
+    }
+
+    await runControllerAction(async () => {
+      const updatedGame = await restartGame(game.gameId)
+      dispatch(setGame(updatedGame))
+      dispatch(
+        startCountdown({
+          startedAt: updatedGame.started_at,
+          durationSeconds: updatedGame.duration_seconds,
+        }),
+      )
+      dispatch(setAllWords([]))
+      dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
+      dispatch(setScore(0))
+      setIsPauseModalOpen(false)
+      pauseSourceStatusRef.current = null
+    })
+  }
+
+  const handleEndGameFromModal = async () => {
+    if (!game.gameId) {
+      return
+    }
+
+    await runControllerAction(async () => {
+      await endGame(game.gameId)
+      setIsPauseModalOpen(false)
+      pauseSourceStatusRef.current = null
+    })
+  }
+
   const persistWords = async (nextWords) => {
     if (!player.playerId) {
       throw new Error('You must join the game before submitting words.')
@@ -340,10 +442,24 @@ function GamePage() {
   const showWordInput = game.status === 'playing'
   const showPlayerList = game.status !== 'idle' && game.status !== 'finished'
   const showResults = game.status === 'finished'
+  const showPauseModal = isPauseModalOpen && isController
 
   return (
     <main className="mx-auto grid w-full max-w-[1140px] gap-4 p-6 text-ui-text">
-      <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
+
+        {canPauseGame ? (
+          <button
+            type="button"
+            onClick={handlePauseButtonClick}
+            disabled={isControllerActionPending}
+            className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Pause
+          </button>
+        ) : null}
+      </div>
 
       <div
         className={
@@ -403,6 +519,63 @@ function GamePage() {
           ) : null}
         </section>
       </div>
+
+      {showPauseModal ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 px-4">
+          <section className="w-full max-w-md rounded-xl border border-ui-border bg-ui-surface p-5 text-ui-text shadow-xl">
+            <h2 className="m-0 text-xl">Game Paused</h2>
+            <p className="mb-4 mt-2 text-ui-muted">
+              {game.status === 'paused'
+                ? 'Choose what happens next.'
+                : 'Pausing game...'}
+            </p>
+
+            {controllerActionError ? (
+              <p className="mb-4 rounded-md border border-ui-danger/40 bg-ui-danger/10 px-3 py-2 text-sm text-ui-danger">
+                {controllerActionError}
+              </p>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleResumeGame}
+                disabled={isControllerActionPending || game.status !== 'paused'}
+                className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Resume
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRestartGame}
+                disabled={isControllerActionPending}
+                className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Restart
+              </button>
+
+              <button
+                type="button"
+                onClick={handleEndGameFromModal}
+                disabled={isControllerActionPending}
+                className="rounded-md border border-ui-danger bg-ui-surface px-3 py-2 font-medium text-ui-danger transition-colors hover:bg-ui-danger/10 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+              >
+                End Game
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPauseModalOpen(false)}
+                disabled={isControllerActionPending}
+                className="rounded-md border border-ui-border bg-transparent px-3 py-2 font-medium text-ui-muted transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   )
 }
