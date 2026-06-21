@@ -166,7 +166,7 @@ function WordInput({
             type="button"
             onClick={() => onRemoveWord(word)}
             disabled={disabled}
-            className="rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text disabled:cursor-not-allowed disabled:opacity-60"
+            className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text disabled:cursor-not-allowed disabled:opacity-60"
             title="Remove word"
           >
             {word}
