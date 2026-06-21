@@ -29,6 +29,50 @@ function parseSingleResult(data, error, contextMessage) {
   return data;
 }
 
+export async function getGameByCode(gameCode) {
+  const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase();
+
+  if (normalizedGameCode.length !== GAME_CODE_LENGTH) {
+    throw new Error('Game code must be a 4-character code.');
+  }
+
+  const query = await supabase
+    .from('boggle_games')
+    .select('*')
+    .eq('game_code', normalizedGameCode)
+    .maybeSingle();
+
+  if (query.error) {
+    throw new Error(`Failed to load game: ${query.error.message}`);
+  }
+
+  if (!query.data) {
+    throw new Error('Game not found.');
+  }
+
+  return query.data;
+}
+
+export async function getPlayersByGameId(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const query = await supabase
+    .from('boggle_players')
+    .select('*')
+    .eq('game_id', normalizedGameId)
+    .order('joined_at', { ascending: true });
+
+  if (query.error) {
+    throw new Error(`Failed to load players: ${query.error.message}`);
+  }
+
+  return Array.isArray(query.data) ? query.data : [];
+}
+
 export async function createGame(boardSize, durationSeconds) {
   const normalizedBoardSize = Number(boardSize);
   const normalizedDurationSeconds = Number(durationSeconds);

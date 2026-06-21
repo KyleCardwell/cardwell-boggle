@@ -16,6 +16,10 @@ function getInitialState() {
   }
 }
 
+function getSecondsUntil(timestampMs) {
+  return Math.max(0, Math.ceil((timestampMs - Date.now()) / 1000))
+}
+
 function applyGamePayload(state, game) {
   if (!game) {
     return
@@ -52,8 +56,19 @@ function applyGamePayload(state, game) {
     state.players = game.players
   }
 
-  if (state.status === 'playing' && state.timeRemaining <= 0) {
-    state.timeRemaining = state.durationSeconds
+  const startedAtMs = new Date(state.startedAt).getTime()
+
+  if (state.status === 'countdown' && !Number.isNaN(startedAtMs)) {
+    state.countdownRemaining = getSecondsUntil(startedAtMs)
+  }
+
+  if (state.status === 'playing') {
+    if (!Number.isNaN(startedAtMs)) {
+      const endAtMs = startedAtMs + (state.durationSeconds * 1000)
+      state.timeRemaining = getSecondsUntil(endAtMs)
+    } else if (state.timeRemaining <= 0) {
+      state.timeRemaining = state.durationSeconds
+    }
   }
 }
 
@@ -174,6 +189,39 @@ const gameSlice = createSlice({
 
       state.countdownRemaining -= 1
     },
+    syncCountdown(state) {
+      if (state.status !== 'countdown' || !state.startedAt) {
+        return
+      }
+
+      const startedAtMs = new Date(state.startedAt).getTime()
+
+      if (Number.isNaN(startedAtMs)) {
+        return
+      }
+
+      const seconds = getSecondsUntil(startedAtMs)
+      state.countdownRemaining = seconds
+
+      if (seconds <= 0) {
+        state.status = 'playing'
+        state.timeRemaining = state.durationSeconds
+      }
+    },
+    syncTimerFromStart(state) {
+      if (state.status !== 'playing' || !state.startedAt) {
+        return
+      }
+
+      const startedAtMs = new Date(state.startedAt).getTime()
+
+      if (Number.isNaN(startedAtMs)) {
+        return
+      }
+
+      const endAtMs = startedAtMs + (state.durationSeconds * 1000)
+      state.timeRemaining = getSecondsUntil(endAtMs)
+    },
     tick(state) {
       if (state.status !== 'playing') {
         return
@@ -205,6 +253,8 @@ export const {
   setAllWords,
   startCountdown,
   tickCountdown,
+  syncCountdown,
+  syncTimerFromStart,
   tick,
   resetGame,
 } = gameSlice.actions
