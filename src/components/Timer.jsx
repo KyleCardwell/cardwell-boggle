@@ -38,6 +38,7 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
           textAlign: 'center',
           fontSize: '2rem',
           fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         Game starts in {countdownRemaining}...
@@ -55,6 +56,7 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
           textAlign: 'center',
           fontSize: '1.6rem',
           fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         Time Remaining: {formatSeconds(timeRemaining)}

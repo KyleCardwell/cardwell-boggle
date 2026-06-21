@@ -12,8 +12,8 @@ function Board({ board, size, status, countdownRemaining }) {
           display: 'grid',
           gridTemplateColumns: `repeat(${size}, minmax(2.25rem, 1fr))`,
           gap: '0.45rem',
-          filter: isCountdown ? 'blur(2px)' : 'none',
-          opacity: isCountdown ? 0.72 : 1,
+          filter: isCountdown ? 'blur(4px)' : 'none',
+          opacity: isCountdown ? 0.58 : 1,
           transition: 'filter 200ms ease, opacity 200ms ease',
         }}
       >

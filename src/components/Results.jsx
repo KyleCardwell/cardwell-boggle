@@ -46,11 +46,13 @@ function Results({ players, allWords, onPlayAgain }) {
               <article key={player.id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '0.75rem' }}>
                 <h3 style={{ marginTop: 0 }}>{player.display_name}</h3>
                 <p style={{ margin: '0 0 0.5rem' }}>Score: {score}</p>
-                <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                  {words.map((word) => (
-                    <li key={`${player.id}-${word}`}>{word}</li>
-                  ))}
-                </ul>
+                <div style={{ maxHeight: '11rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
+                  <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                    {words.map((word) => (
+                      <li key={`${player.id}-${word}`}>{word}</li>
+                    ))}
+                  </ul>
+                </div>
               </article>
             )
           })}
@@ -59,12 +61,14 @@ function Results({ players, allWords, onPlayAgain }) {
 
       <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '1rem' }}>
         <h3 style={{ marginTop: 0 }}>All Possible Words ({allWords.length})</h3>
-        {groupedAllWords.map(([length, words]) => (
-          <div key={length} style={{ marginBottom: '0.75rem' }}>
-            <p style={{ margin: '0 0 0.35rem', fontWeight: 600 }}>{length} letters</p>
-            <p style={{ margin: 0, color: '#334155' }}>{words.join(', ')}</p>
-          </div>
-        ))}
+        <div style={{ maxHeight: '16rem', overflowY: 'auto', paddingRight: '0.35rem' }}>
+          {groupedAllWords.map(([length, words]) => (
+            <div key={length} style={{ marginBottom: '0.75rem' }}>
+              <p style={{ margin: '0 0 0.35rem', fontWeight: 600 }}>{length} letters</p>
+              <p style={{ margin: 0, color: '#334155' }}>{words.join(', ')}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <button type="button" onClick={onPlayAgain} style={{ justifySelf: 'start' }}>

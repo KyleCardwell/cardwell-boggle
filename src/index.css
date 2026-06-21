@@ -109,3 +109,26 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.game-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.game-layout__board,
+.game-layout__side {
+  min-width: 0;
+}
+
+.game-layout__side {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+@media (min-width: 960px) {
+  .game-layout--with-board {
+    grid-template-columns: minmax(0, 60%) minmax(0, 40%);
+    align-items: start;
+  }
+}

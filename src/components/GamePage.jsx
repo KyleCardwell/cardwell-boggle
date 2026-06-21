@@ -331,58 +331,68 @@ function GamePage() {
     )
   }
 
+  const showBoard = game.status === 'countdown' || game.status === 'playing' || game.status === 'finished'
+  const showLobby = game.status === 'waiting' || game.status === 'countdown'
+  const showWordInput = game.status === 'playing'
+  const showPlayerList = game.status !== 'idle' && game.status !== 'finished'
+  const showResults = game.status === 'finished'
+
   return (
-    <main style={{ maxWidth: 1040, margin: '0 auto', padding: '1.5rem', display: 'grid', gap: '1rem' }}>
+    <main style={{ maxWidth: 1140, margin: '0 auto', padding: '1.5rem', display: 'grid', gap: '1rem' }}>
       <h1 style={{ margin: 0 }}>Game {game.gameCode || normalizedGameCode}</h1>
 
-      <Timer
-        status={game.status}
-        countdownRemaining={game.countdownRemaining}
-        timeRemaining={game.timeRemaining}
-        onTimeExpired={handleTimerExpired}
-      />
+      <div className={`game-layout ${showBoard ? 'game-layout--with-board' : ''}`}>
+        {showBoard ? (
+          <section className="game-layout__board">
+            <Board
+              board={game.board}
+              size={game.boardSize}
+              status={game.status}
+              countdownRemaining={game.countdownRemaining}
+            />
+          </section>
+        ) : null}
 
-      {game.status === 'waiting' || game.status === 'countdown' ? (
-        <Lobby
-          gameCode={game.gameCode || normalizedGameCode}
-          players={game.players}
-          canStart={canStart}
-          onStartGame={handleStartGame}
-        />
-      ) : null}
+        <section className="game-layout__side">
+          <Timer
+            status={game.status}
+            countdownRemaining={game.countdownRemaining}
+            timeRemaining={game.timeRemaining}
+            onTimeExpired={handleTimerExpired}
+          />
 
-      {game.status === 'countdown' || game.status === 'playing' || game.status === 'finished' ? (
-        <Board
-          board={game.board}
-          size={game.boardSize}
-          status={game.status}
-          countdownRemaining={game.countdownRemaining}
-        />
-      ) : null}
+          {showLobby ? (
+            <Lobby
+              gameCode={game.gameCode || normalizedGameCode}
+              players={game.players}
+              canStart={canStart}
+              onStartGame={handleStartGame}
+            />
+          ) : null}
 
-      {game.status === 'playing' ? (
-        <WordInput
-          dictionary={dictionary}
-          board={game.board}
-          boardSize={game.boardSize}
-          status={game.status}
-          wordsFound={player.wordsFound}
-          onSubmitWord={handleSubmitWord}
-          onRemoveWord={handleRemoveWord}
-        />
-      ) : null}
+          {showWordInput ? (
+            <WordInput
+              dictionary={dictionary}
+              board={game.board}
+              boardSize={game.boardSize}
+              status={game.status}
+              wordsFound={player.wordsFound}
+              onSubmitWord={handleSubmitWord}
+              onRemoveWord={handleRemoveWord}
+            />
+          ) : null}
 
-      {game.status !== 'idle' && game.status !== 'finished' ? (
-        <PlayerList players={game.players} />
-      ) : null}
+          {showPlayerList ? <PlayerList players={game.players} /> : null}
 
-      {game.status === 'finished' ? (
-        <Results
-          players={game.players}
-          allWords={game.allWords}
-          onPlayAgain={() => navigate('/')}
-        />
-      ) : null}
+          {showResults ? (
+            <Results
+              players={game.players}
+              allWords={game.allWords}
+              onPlayAgain={() => navigate('/')}
+            />
+          ) : null}
+        </section>
+      </div>
     </main>
   )
 }
