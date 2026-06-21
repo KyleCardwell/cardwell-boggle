@@ -1,9 +1,9 @@
-import { scoreWords } from '../utils/scoring'
+import { scoreWord } from '../utils/scoring'
 
 function groupWordsByLength(words) {
   const groups = new Map()
 
-  for (const word of words) {
+  for (const word of Array.isArray(words) ? words : []) {
     const normalized = String(word ?? '').trim().toLowerCase()
 
     if (!normalized) {
@@ -24,11 +24,40 @@ function groupWordsByLength(words) {
     .sort((a, b) => a[0] - b[0])
 }
 
+function normalizeWords(words) {
+  if (!Array.isArray(words)) {
+    return []
+  }
+
+  return words
+    .map((word) => String(word ?? '').trim().toLowerCase())
+    .filter((word) => word.length > 0)
+}
+
+function getSharedWordSet(players) {
+  const playerCountByWord = new Map()
+
+  for (const player of players) {
+    const uniqueWords = new Set(normalizeWords(player.words_found))
+
+    for (const word of uniqueWords) {
+      playerCountByWord.set(word, (playerCountByWord.get(word) ?? 0) + 1)
+    }
+  }
+
+  return new Set(
+    Array.from(playerCountByWord.entries())
+      .filter(([, count]) => count > 1)
+      .map(([word]) => word),
+  )
+}
+
 function Results({
   players,
   allWords,
 }) {
   const groupedAllWords = groupWordsByLength(allWords)
+  const sharedWordSet = getSharedWordSet(players)
 
   return (
     <section className="grid gap-4">
@@ -36,17 +65,27 @@ function Results({
         <h2 className="mt-0">Results</h2>
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
           {players.map((player) => {
-            const words = Array.isArray(player.words_found) ? player.words_found : []
-            const score = scoreWords(words)
+            const words = normalizeWords(player.words_found)
+            const score = words.reduce(
+              (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
+              0,
+            )
 
             return (
               <article key={player.id} className="rounded-[10px] border border-ui-border bg-ui-surface-alt p-3">
-                <h3 className="mt-0">{player.display_name}</h3>
-                <p className="mb-2">Score: {score}</p>
+                <div className="flex items-center justify-between border-b border-ui-border pb-1">
+                  <h3 className="mt-0">{player.display_name}</h3>
+                  <p className="mb-0">Score: {score}</p>
+                </div>
                 <div className="max-h-44 overflow-y-auto pr-1.5">
-                  <ul className="m-0 pl-5">
-                    {words.map((word) => (
-                      <li key={`${player.id}-${word}`}>{word}</li>
+                  <ul className="m-0 pl-5 grid grid-cols-3 gap-1">
+                    {words.map((word, index) => (
+                      <li
+                        key={`${player.id}-${word}-${index}`}
+                        className={sharedWordSet.has(word) ? 'text-ui-muted line-through' : undefined}
+                      >
+                        {word}
+                      </li>
                     ))}
                   </ul>
                 </div>
