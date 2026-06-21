@@ -179,6 +179,49 @@ export async function startGame(gameId) {
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to start game');
 }
 
+export async function updateWaitingGameSettings(gameId, { boardSize, durationSeconds }) {
+  const normalizedGameId = String(gameId ?? '').trim();
+  const normalizedBoardSize = Number(boardSize);
+  const normalizedDurationSeconds = Number(durationSeconds);
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  if (!Number.isInteger(normalizedBoardSize) || normalizedBoardSize <= 0) {
+    throw new Error('Board size must be a positive integer.');
+  }
+
+  if (!Number.isInteger(normalizedDurationSeconds) || normalizedDurationSeconds <= 0) {
+    throw new Error('Duration must be a positive integer (seconds).');
+  }
+
+  const board = generateBoard(normalizedBoardSize);
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update({
+      board,
+      board_size: normalizedBoardSize,
+      duration_seconds: normalizedDurationSeconds,
+    })
+    .eq('id', normalizedGameId)
+    .eq('status', 'waiting')
+    .select('*');
+
+  if (updateResult.error) {
+    throw new Error(`Failed to update game settings: ${updateResult.error.message}`);
+  }
+
+  const updatedGame = Array.isArray(updateResult.data) ? updateResult.data[0] : null;
+
+  if (!updatedGame) {
+    throw new Error('Game settings can only be updated while waiting.');
+  }
+
+  return updatedGame;
+}
+
 export async function activateGame(gameId) {
   const normalizedGameId = String(gameId ?? '').trim();
 
@@ -308,6 +351,57 @@ export async function restartGame(gameId) {
     .single();
 
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to restart game');
+}
+
+export async function resetGameToWaiting(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const gameQuery = await supabase
+    .from('boggle_games')
+    .select('board_size')
+    .eq('id', normalizedGameId)
+    .maybeSingle();
+
+  if (gameQuery.error) {
+    throw new Error(`Failed to load game: ${gameQuery.error.message}`);
+  }
+
+  const boardSize = Number(gameQuery.data?.board_size);
+
+  if (!Number.isInteger(boardSize) || boardSize <= 0) {
+    throw new Error('Unable to reset game: invalid board size.');
+  }
+
+  const board = generateBoard(boardSize);
+
+  const playersResetResult = await supabase
+    .from('boggle_players')
+    .update({
+      words_found: [],
+      score: 0,
+    })
+    .eq('game_id', normalizedGameId);
+
+  if (playersResetResult.error) {
+    throw new Error(`Failed to reset player words: ${playersResetResult.error.message}`);
+  }
+
+  const updateResult = await supabase
+    .from('boggle_games')
+    .update({
+      board,
+      started_at: new Date().toISOString(),
+      status: 'waiting',
+    })
+    .eq('id', normalizedGameId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to reset game to waiting state');
 }
 
 export async function submitWords(playerId, words) {

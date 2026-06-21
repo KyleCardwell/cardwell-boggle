@@ -4,6 +4,7 @@ function Board({ board, size, status, countdownRemaining }) {
   }
 
   const isCountdown = status === 'countdown'
+  const isFinished = status === 'finished'
   const tileFontSize =
     size <= 3
       ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
@@ -31,9 +32,11 @@ function Board({ board, size, status, countdownRemaining }) {
             <div
               key={`${normalizedTile}-${index}`}
               className={
-                isSpecialTile
-                  ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-die font-bold uppercase text-ui-die-text'
-                  : 'grid aspect-square place-items-center rounded-[10px] border border-ui-border bg-ui-die font-bold uppercase text-ui-die-text'
+                isFinished
+                  ? 'grid aspect-square place-items-center rounded-[10px] border border-red-400/40 bg-red-900/35 font-bold uppercase text-white'
+                  : isSpecialTile
+                    ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-die font-bold uppercase text-ui-die-text'
+                    : 'grid aspect-square place-items-center rounded-[10px] border border-ui-border bg-ui-die font-bold uppercase text-ui-die-text'
               }
               style={{ fontSize: tileFontSize }}
             >

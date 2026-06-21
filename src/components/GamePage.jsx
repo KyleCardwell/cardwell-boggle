@@ -13,11 +13,13 @@ import {
   getGameByCode,
   getPlayersByGameId,
   pauseGame,
+  resetGameToWaiting,
   restartGame,
   resumeGame,
   startGame,
   submitWords,
   subscribeToGame,
+  updateWaitingGameSettings,
 } from '../supabase/gameApi'
 import { loadDictionary } from '../utils/dictionary'
 import { findAllWords } from '../utils/boardSolver'
@@ -52,6 +54,8 @@ function GamePage() {
   const [controllerActionError, setControllerActionError] = useState('')
   const [isPlayAgainPending, setIsPlayAgainPending] = useState(false)
   const [playAgainError, setPlayAgainError] = useState('')
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
@@ -72,6 +76,7 @@ function GamePage() {
   const canStart =
     game.status === 'waiting' && game.players.length >= 1 && player.playerId && player.playerId === hostId
   const isController = Boolean(player.playerId && player.playerId === hostId)
+  const canEditSettings = isController && game.status === 'waiting'
   const canPauseGame = isController && (game.status === 'countdown' || game.status === 'playing')
 
   useEffect(() => {
@@ -256,6 +261,27 @@ function GamePage() {
     )
   }
 
+  const handleSaveSettings = async ({ boardSize, durationSeconds }) => {
+    if (!game.gameId || !canEditSettings || isSavingSettings) {
+      return
+    }
+
+    setSettingsError('')
+    setIsSavingSettings(true)
+
+    try {
+      const updatedGame = await updateWaitingGameSettings(game.gameId, {
+        boardSize,
+        durationSeconds,
+      })
+      dispatch(setGame(updatedGame))
+    } catch (error) {
+      setSettingsError(error.message || 'Unable to save game settings.')
+    } finally {
+      setIsSavingSettings(false)
+    }
+  }
+
   const runControllerAction = async (action) => {
     if (isControllerActionPending) {
       return
@@ -324,14 +350,8 @@ function GamePage() {
     setIsPlayAgainPending(true)
 
     try {
-      const updatedGame = await restartGame(game.gameId)
+      const updatedGame = await resetGameToWaiting(game.gameId)
       dispatch(setGame(updatedGame))
-      dispatch(
-        startCountdown({
-          startedAt: updatedGame.started_at,
-          durationSeconds: updatedGame.duration_seconds,
-        }),
-      )
       dispatch(setAllWords([]))
       dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
       dispatch(setScore(0))
@@ -549,10 +569,17 @@ function GamePage() {
 
           {showLobby ? (
             <Lobby
+              key={`${game.gameId ?? 'game'}-${game.boardSize}-${game.durationSeconds}-${canEditSettings ? 'host' : 'guest'}`}
               gameCode={game.gameCode || normalizedGameCode}
               players={game.players}
               canStart={canStart}
+              boardSize={game.boardSize}
+              durationSeconds={game.durationSeconds}
+              isHost={canEditSettings}
+              isSavingSettings={isSavingSettings}
+              settingsError={settingsError}
               onStartGame={handleStartGame}
+              onSaveSettings={handleSaveSettings}
             />
           ) : null}
 
@@ -574,6 +601,7 @@ function GamePage() {
             <Results
               players={game.players}
               allWords={game.allWords}
+              boardSize={game.boardSize}
             />
           ) : null}
         </section>
@@ -623,14 +651,14 @@ function GamePage() {
                 End Game
               </button>
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => setIsPauseModalOpen(false)}
                 disabled={isControllerActionPending}
                 className="rounded-md border border-ui-border bg-transparent px-3 py-2 font-medium text-ui-muted transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2"
               >
                 Close
-              </button>
+              </button> */}
             </div>
           </section>
         </div>

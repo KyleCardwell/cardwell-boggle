@@ -1,5 +1,9 @@
 import { scoreWord } from '../utils/scoring'
 
+function getMinimumWordLength(boardSize) {
+  return Number(boardSize) === 4 ? 3 : 4
+}
+
 function groupWordsByLength(words) {
   const groups = new Map()
 
@@ -24,21 +28,21 @@ function groupWordsByLength(words) {
     .sort((a, b) => a[0] - b[0])
 }
 
-function normalizeWords(words) {
+function normalizeWords(words, minimumWordLength = 3) {
   if (!Array.isArray(words)) {
     return []
   }
 
   return words
     .map((word) => String(word ?? '').trim().toLowerCase())
-    .filter((word) => word.length > 0)
+    .filter((word) => word.length >= minimumWordLength)
 }
 
-function getSharedWordSet(players) {
+function getSharedWordSet(players, minimumWordLength) {
   const playerCountByWord = new Map()
 
   for (const player of players) {
-    const uniqueWords = new Set(normalizeWords(player.words_found))
+    const uniqueWords = new Set(normalizeWords(player.words_found, minimumWordLength))
 
     for (const word of uniqueWords) {
       playerCountByWord.set(word, (playerCountByWord.get(word) ?? 0) + 1)
@@ -55,9 +59,12 @@ function getSharedWordSet(players) {
 function Results({
   players,
   allWords,
+  boardSize,
 }) {
-  const groupedAllWords = groupWordsByLength(allWords)
-  const sharedWordSet = getSharedWordSet(players)
+  const minimumWordLength = getMinimumWordLength(boardSize)
+  const filteredAllWords = normalizeWords(allWords, minimumWordLength)
+  const groupedAllWords = groupWordsByLength(filteredAllWords)
+  const sharedWordSet = getSharedWordSet(players, minimumWordLength)
 
   return (
     <section className="grid gap-4">
@@ -65,7 +72,7 @@ function Results({
         <h2 className="mt-0">Results</h2>
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
           {players.map((player) => {
-            const words = normalizeWords(player.words_found)
+            const words = normalizeWords(player.words_found, minimumWordLength)
             const score = words.reduce(
               (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
               0,
@@ -96,7 +103,7 @@ function Results({
       </div>
 
       <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
-        <h3 className="mt-0">All Possible Words ({allWords.length})</h3>
+        <h3 className="mt-0">All Possible Words ({filteredAllWords.length})</h3>
         <div className="max-h-64 overflow-y-auto pr-1.5">
           {groupedAllWords.map(([length, words]) => (
             <div key={length} className="mb-3">

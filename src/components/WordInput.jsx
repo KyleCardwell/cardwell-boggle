@@ -4,6 +4,10 @@ function normalizeTile(tile) {
   return String(tile ?? '').trim().toLowerCase()
 }
 
+function getMinimumWordLength(boardSize) {
+  return Number(boardSize) === 4 ? 3 : 4
+}
+
 function canConstructWord(board, size, word) {
   if (!Array.isArray(board) || !Number.isInteger(size) || size <= 0) {
     return false
@@ -93,6 +97,7 @@ function WordInput({
 }) {
   const [value, setValue] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const minimumWordLength = getMinimumWordLength(boardSize)
 
   const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
 
@@ -105,8 +110,8 @@ function WordInput({
 
     const normalizedWord = value.trim().toLowerCase()
 
-    if (normalizedWord.length < 3) {
-      setErrorMessage('Word must be at least 3 letters.')
+    if (normalizedWord.length < minimumWordLength) {
+      setErrorMessage(`Word must be at least ${minimumWordLength} letters.`)
       return
     }
 
