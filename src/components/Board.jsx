@@ -1,4 +1,4 @@
-function Board({ board, size, status, countdownRemaining, highlightedPath = [] }) {
+function Board({ board, size, status, countdownRemaining, highlightedPath = [], isCompact = false }) {
   if (!Array.isArray(board) || !Number.isInteger(size) || size <= 0) {
     return null
   }
@@ -6,24 +6,37 @@ function Board({ board, size, status, countdownRemaining, highlightedPath = [] }
   const isCountdown = status === 'countdown'
   const isFinished = status === 'finished'
   const highlightedTileIndexes = new Set(Array.isArray(highlightedPath) ? highlightedPath : [])
+  const tileMinSize = isCompact ? '1.95rem' : '2.25rem'
+  const gridGap = isCompact ? '0.35rem' : '0.45rem'
   const tileFontSize =
-    size <= 3
-      ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
-      : size === 4
-        ? 'clamp(1.1rem, 4.8vw, 2rem)'
-        : size === 5
-          ? 'clamp(1rem, 3.8vw, 1.55rem)'
-          : 'clamp(0.9rem, 2.8vw, 1.25rem)'
+    isCompact
+      ? size <= 3
+        ? 'clamp(1.1rem, 4.8vw, 2.1rem)'
+        : size === 4
+          ? 'clamp(0.95rem, 3.9vw, 1.65rem)'
+          : size === 5
+            ? 'clamp(0.85rem, 3.1vw, 1.35rem)'
+            : 'clamp(0.78rem, 2.3vw, 1.1rem)'
+      : size <= 3
+        ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
+        : size === 4
+          ? 'clamp(1.1rem, 4.8vw, 2rem)'
+          : size === 5
+            ? 'clamp(1rem, 3.8vw, 1.55rem)'
+            : 'clamp(0.9rem, 2.8vw, 1.25rem)'
 
   return (
     <section className="relative w-full">
       <div
         className={
           isCountdown
-            ? 'grid w-full gap-[0.45rem] transition-[filter,opacity] duration-200 ease-in-out'
-            : 'grid w-full gap-[0.45rem] transition-[filter,opacity] duration-200 ease-in-out'
+            ? 'grid w-full transition-[filter,opacity] duration-200 ease-in-out'
+            : 'grid w-full transition-[filter,opacity] duration-200 ease-in-out'
         }
-        style={{ gridTemplateColumns: `repeat(${size}, minmax(2.25rem, 1fr))` }}
+        style={{
+          gap: gridGap,
+          gridTemplateColumns: `repeat(${size}, minmax(${tileMinSize}, 1fr))`,
+        }}
       >
         {board.map((tile, index) => {
           const normalizedTile = String(tile ?? '').toUpperCase()
@@ -59,7 +72,13 @@ function Board({ board, size, status, countdownRemaining, highlightedPath = [] }
       </div>
 
       {isCountdown && countdownRemaining > 0 ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.8rem,5.6vw,3.1rem)] font-extrabold text-ui-text [font-variant-numeric:tabular-nums]">
+        <div
+          className={
+            isCompact
+              ? 'pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.4rem,4.4vw,2.45rem)] font-extrabold text-ui-text [font-variant-numeric:tabular-nums]'
+              : 'pointer-events-none absolute inset-0 grid place-items-center text-[clamp(1.8rem,5.6vw,3.1rem)] font-extrabold text-ui-text [font-variant-numeric:tabular-nums]'
+          }
+        >
           {countdownRemaining}
         </div>
       ) : null}

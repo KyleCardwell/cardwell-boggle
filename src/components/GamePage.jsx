@@ -60,6 +60,7 @@ function GamePage() {
   const [settingsError, setSettingsError] = useState('')
   const [animatedHighlightedPath, setAnimatedHighlightedPath] = useState([])
   const [highlightedRoundKey, setHighlightedRoundKey] = useState(null)
+  const [isKeyboardLikelyOpen, setIsKeyboardLikelyOpen] = useState(false)
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
@@ -279,6 +280,57 @@ function GamePage() {
     },
     [],
   )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+
+    const getViewportHeight = () => window.visualViewport?.height ?? window.innerHeight
+    const getViewportWidth = () => window.visualViewport?.width ?? window.innerWidth
+
+    let baselineHeight = getViewportHeight()
+
+    const updateKeyboardState = () => {
+      const viewportHeight = getViewportHeight()
+      const viewportWidth = getViewportWidth()
+
+      if (viewportHeight > baselineHeight) {
+        baselineHeight = viewportHeight
+      }
+
+      const keyboardHeight = baselineHeight - viewportHeight
+      const keyboardThreshold = Math.max(120, baselineHeight * 0.24)
+      const isNarrowViewport = viewportWidth < 1024
+
+      setIsKeyboardLikelyOpen(isNarrowViewport && keyboardHeight > keyboardThreshold)
+    }
+
+    const handleOrientationChange = () => {
+      baselineHeight = getViewportHeight()
+      updateKeyboardState()
+    }
+
+    updateKeyboardState()
+
+    window.addEventListener('resize', updateKeyboardState)
+    window.addEventListener('orientationchange', handleOrientationChange)
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateKeyboardState)
+      window.visualViewport.addEventListener('scroll', updateKeyboardState)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateKeyboardState)
+      window.removeEventListener('orientationchange', handleOrientationChange)
+
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateKeyboardState)
+        window.visualViewport.removeEventListener('scroll', updateKeyboardState)
+      }
+    }
+  }, [])
 
   const handleStartGame = async () => {
     if (!game.gameId) {
@@ -573,6 +625,16 @@ function GamePage() {
   const showResults = game.status === 'finished'
   const showPauseNotice = game.status === 'paused'
   const showPauseModal = isPauseModalOpen && isController
+  const shouldCompactBoardForKeyboard = showWordInput && isKeyboardLikelyOpen
+  const compactBoardWidthPercent =
+    game.boardSize >= 8 ? 72 : game.boardSize >= 6 ? 78 : game.boardSize >= 5 ? 84 : 90
+  const compactBoardContainerStyle = shouldCompactBoardForKeyboard
+    ? {
+        width: `${compactBoardWidthPercent}%`,
+        marginInline: 'auto',
+        transition: 'width 150ms ease-out',
+      }
+    : undefined
 
   return (
     <main className="mx-auto grid w-full max-w-[1140px] gap-4 p-6 text-ui-text">
@@ -624,12 +686,16 @@ function GamePage() {
         }
       >
         {showBoard ? (
-          <section className="min-w-0 w-full lg:basis-[60%] lg:flex-none">
+          <section
+            className="min-w-0 w-full lg:basis-[60%] lg:flex-none"
+            style={compactBoardContainerStyle}
+          >
             <Board
               board={game.board}
               size={game.boardSize}
               status={game.status}
               countdownRemaining={game.countdownRemaining}
+              isCompact={shouldCompactBoardForKeyboard}
               highlightedPath={
                 showResults && highlightedRoundKey === currentRoundKey
                   ? animatedHighlightedPath
