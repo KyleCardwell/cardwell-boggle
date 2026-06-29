@@ -6,24 +6,16 @@ function Board({ board, size, status, countdownRemaining, highlightedPath = [], 
   const isCountdown = status === 'countdown'
   const isFinished = status === 'finished'
   const highlightedTileIndexes = new Set(Array.isArray(highlightedPath) ? highlightedPath : [])
-  const tileMinSize = isCompact ? '1.95rem' : '2.25rem'
-  const gridGap = isCompact ? '0.35rem' : '0.45rem'
+  const tileMinSize = isCompact ? '1.15rem' : '2.25rem'
+  const gridGap = isCompact ? '0.2rem' : '0.45rem'
   const tileFontSize =
-    isCompact
-      ? size <= 3
-        ? 'clamp(1.1rem, 4.8vw, 2.1rem)'
-        : size === 4
-          ? 'clamp(0.95rem, 3.9vw, 1.65rem)'
-          : size === 5
-            ? 'clamp(0.85rem, 3.1vw, 1.35rem)'
-            : 'clamp(0.78rem, 2.3vw, 1.1rem)'
-      : size <= 3
-        ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
-        : size === 4
-          ? 'clamp(1.1rem, 4.8vw, 2rem)'
-          : size === 5
-            ? 'clamp(1rem, 3.8vw, 1.55rem)'
-            : 'clamp(0.9rem, 2.8vw, 1.25rem)'
+    size <= 3
+      ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
+      : size === 4
+        ? 'clamp(1.1rem, 4.8vw, 2rem)'
+        : size === 5
+          ? 'clamp(1rem, 3.8vw, 1.55rem)'
+          : 'clamp(0.9rem, 2.8vw, 1.25rem)'
 
   return (
     <section className="relative w-full">
