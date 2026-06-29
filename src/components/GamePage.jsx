@@ -22,7 +22,7 @@ import {
   updateWaitingGameSettings,
 } from '../supabase/gameApi'
 import { loadDictionary } from '../utils/dictionary'
-import { findAllWords } from '../utils/boardSolver'
+import { findAllWordsWithPaths } from '../utils/boardSolver'
 import {
   removePlayer,
   setAllWords,
@@ -37,6 +37,8 @@ import {
 } from '../store/gameSlice'
 import { addWord, removeWord, setPlayer, setScore } from '../store/playerSlice'
 import { scoreWords } from '../utils/scoring'
+
+const HOVER_HIGHLIGHT_STEP_MS = 200
 
 function GamePage() {
   const { gameCode } = useParams()
@@ -56,12 +58,16 @@ function GamePage() {
   const [playAgainError, setPlayAgainError] = useState('')
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [settingsError, setSettingsError] = useState('')
+  const [animatedHighlightedPath, setAnimatedHighlightedPath] = useState([])
+  const [highlightedRoundKey, setHighlightedRoundKey] = useState(null)
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
   const pauseSourceStatusRef = useRef(null)
+  const highlightTimeoutIdsRef = useRef([])
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
+  const currentRoundKey = `${game.gameId ?? ''}:${game.startedAt ?? ''}`
 
   const hostId = useMemo(() => {
     const sorted = [...game.players].sort((a, b) => {
@@ -78,6 +84,23 @@ function GamePage() {
   const isController = Boolean(player.playerId && player.playerId === hostId)
   const canEditSettings = isController && game.status === 'waiting'
   const canPauseGame = isController && (game.status === 'countdown' || game.status === 'playing')
+
+  const solvedWordData = useMemo(() => {
+    if (
+      game.status !== 'finished' ||
+      !dictionary ||
+      !Array.isArray(game.board) ||
+      game.board.length === 0 ||
+      game.boardSize <= 0
+    ) {
+      return {
+        allWords: [],
+        wordPathByWord: {},
+      }
+    }
+
+    return findAllWordsWithPaths(game.board, game.boardSize, dictionary)
+  }, [dictionary, game.board, game.boardSize, game.status])
 
   useEffect(() => {
     let cancelled = false
@@ -233,18 +256,29 @@ function GamePage() {
   }, [game.gameId, game.status])
 
   useEffect(() => {
-    if (
-      game.status === 'finished' &&
-      dictionary &&
-      Array.isArray(game.board) &&
-      game.board.length > 0 &&
-      game.boardSize > 0 &&
-      game.allWords.length === 0
-    ) {
-      const allWords = findAllWords(game.board, game.boardSize, dictionary)
-      dispatch(setAllWords(allWords))
+    if (game.status !== 'finished') {
+      for (const timeoutId of highlightTimeoutIdsRef.current) {
+        clearTimeout(timeoutId)
+      }
+      highlightTimeoutIdsRef.current = []
+      return
     }
-  }, [dictionary, dispatch, game.allWords.length, game.board, game.boardSize, game.status])
+
+    if (!dictionary || !Array.isArray(game.board) || game.board.length === 0 || game.boardSize <= 0) {
+      return
+    }
+
+    dispatch(setAllWords(solvedWordData.allWords))
+  }, [dictionary, dispatch, game.board, game.boardSize, game.status, solvedWordData.allWords])
+
+  useEffect(
+    () => () => {
+      for (const timeoutId of highlightTimeoutIdsRef.current) {
+        clearTimeout(timeoutId)
+      }
+    },
+    [],
+  )
 
   const handleStartGame = async () => {
     if (!game.gameId) {
@@ -280,6 +314,52 @@ function GamePage() {
     } finally {
       setIsSavingSettings(false)
     }
+  }
+
+  const handleAllWordsWordHover = (word) => {
+    const normalizedWord = String(word ?? '').trim().toLowerCase()
+
+    for (const timeoutId of highlightTimeoutIdsRef.current) {
+      clearTimeout(timeoutId)
+    }
+    highlightTimeoutIdsRef.current = []
+    setAnimatedHighlightedPath([])
+
+    if (!normalizedWord) {
+      setHighlightedRoundKey(null)
+      return
+    }
+
+    const path = solvedWordData.wordPathByWord[normalizedWord]
+    if (!Array.isArray(path) || path.length === 0) {
+      setHighlightedRoundKey(null)
+      return
+    }
+
+    setHighlightedRoundKey(currentRoundKey)
+
+    path.forEach((tileIndex, stepIndex) => {
+      const timeoutId = setTimeout(() => {
+        setAnimatedHighlightedPath((previousPath) => {
+          if (previousPath.includes(tileIndex)) {
+            return previousPath
+          }
+
+          return [...previousPath, tileIndex]
+        })
+      }, stepIndex * HOVER_HIGHLIGHT_STEP_MS)
+
+      highlightTimeoutIdsRef.current.push(timeoutId)
+    })
+  }
+
+  const handleAllWordsWordHoverEnd = () => {
+    for (const timeoutId of highlightTimeoutIdsRef.current) {
+      clearTimeout(timeoutId)
+    }
+    highlightTimeoutIdsRef.current = []
+    setHighlightedRoundKey(null)
+    setAnimatedHighlightedPath([])
   }
 
   const runControllerAction = async (action) => {
@@ -458,11 +538,6 @@ function GamePage() {
       endingRef.current = false
     }
 
-    if (dictionary && game.board.length > 0 && game.boardSize > 0) {
-      const allWords = findAllWords(game.board, game.boardSize, dictionary)
-      dispatch(setAllWords(allWords))
-    }
-
     dispatch(updateGameStatus('finished'))
   }
 
@@ -555,6 +630,11 @@ function GamePage() {
               size={game.boardSize}
               status={game.status}
               countdownRemaining={game.countdownRemaining}
+              highlightedPath={
+                showResults && highlightedRoundKey === currentRoundKey
+                  ? animatedHighlightedPath
+                  : []
+              }
             />
           </section>
         ) : null}
@@ -602,6 +682,8 @@ function GamePage() {
               players={game.players}
               allWords={game.allWords}
               boardSize={game.boardSize}
+              onWordHover={handleAllWordsWordHover}
+              onWordHoverEnd={handleAllWordsWordHoverEnd}
             />
           ) : null}
         </section>

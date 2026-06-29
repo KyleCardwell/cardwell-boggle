@@ -1,10 +1,11 @@
-function Board({ board, size, status, countdownRemaining }) {
+function Board({ board, size, status, countdownRemaining, highlightedPath = [] }) {
   if (!Array.isArray(board) || !Number.isInteger(size) || size <= 0) {
     return null
   }
 
   const isCountdown = status === 'countdown'
   const isFinished = status === 'finished'
+  const highlightedTileIndexes = new Set(Array.isArray(highlightedPath) ? highlightedPath : [])
   const tileFontSize =
     size <= 3
       ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
@@ -27,16 +28,19 @@ function Board({ board, size, status, countdownRemaining }) {
         {board.map((tile, index) => {
           const normalizedTile = String(tile ?? '').toUpperCase()
           const isSpecialTile = normalizedTile === 'QU'
+          const isHighlighted = highlightedTileIndexes.has(index)
 
           return (
             <div
               key={`${normalizedTile}-${index}`}
               className={
-                isFinished
-                  ? 'grid aspect-square place-items-center rounded-[10px] border border-red-400/40 bg-red-900/35 font-bold uppercase text-white'
-                  : isSpecialTile
-                    ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-die font-bold uppercase text-ui-die-text'
-                    : 'grid aspect-square place-items-center rounded-[10px] border border-ui-border bg-ui-die font-bold uppercase text-ui-die-text'
+                isHighlighted
+                  ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-teal/20 font-bold uppercase text-ui-text shadow-[0_0_0_2px_rgba(20,184,166,0.28)] transition-colors duration-150 ease-out'
+                  : isFinished
+                    ? 'grid aspect-square place-items-center rounded-[10px] border border-red-400/40 bg-red-900/35 font-bold uppercase text-white'
+                    : isSpecialTile
+                      ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-die font-bold uppercase text-ui-die-text'
+                      : 'grid aspect-square place-items-center rounded-[10px] border border-ui-border bg-ui-die font-bold uppercase text-ui-die-text'
               }
               style={{ fontSize: tileFontSize }}
             >

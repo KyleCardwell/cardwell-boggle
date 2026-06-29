@@ -60,6 +60,8 @@ function Results({
   players,
   allWords,
   boardSize,
+  onWordHover,
+  onWordHoverEnd,
 }) {
   const minimumWordLength = getMinimumWordLength(boardSize)
   const filteredAllWords = normalizeWords(allWords, minimumWordLength)
@@ -91,7 +93,16 @@ function Results({
                         key={`${player.id}-${word}-${index}`}
                         className={sharedWordSet.has(word) ? 'text-ui-muted line-through' : undefined}
                       >
-                        {word}
+                        <button
+                          type="button"
+                          className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
+                          onMouseEnter={() => onWordHover?.(word)}
+                          onMouseLeave={() => onWordHoverEnd?.()}
+                          onFocus={() => onWordHover?.(word)}
+                          onBlur={() => onWordHoverEnd?.()}
+                        >
+                          {word}
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -108,7 +119,23 @@ function Results({
           {groupedAllWords.map(([length, words]) => (
             <div key={length} className="mb-3">
               <p className="mb-1.5 font-semibold">{length} letters</p>
-              <p className="m-0 text-ui-muted">{words.join(', ')}</p>
+              <p className="m-0 text-ui-muted leading-relaxed">
+                {words.map((word, index) => (
+                  <span key={`${length}-${word}-${index}`}>
+                    <button
+                      type="button"
+                      className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
+                      onMouseEnter={() => onWordHover?.(word)}
+                      onMouseLeave={() => onWordHoverEnd?.()}
+                      onFocus={() => onWordHover?.(word)}
+                      onBlur={() => onWordHoverEnd?.()}
+                    >
+                      {word}
+                    </button>
+                    {index < words.length - 1 ? ', ' : null}
+                  </span>
+                ))}
+              </p>
             </div>
           ))}
         </div>

@@ -97,7 +97,11 @@ function normalizeTile(tile) {
   return String(tile ?? '').trim().toLowerCase();
 }
 
-export function findAllWords(board, size, dictionary) {
+function getMinimumWordLength(size) {
+  return Number(size) === 4 ? 3 : 4;
+}
+
+export function findAllWordsWithPaths(board, size, dictionary) {
   const normalizedSize = Number(size);
 
   if (!Number.isInteger(normalizedSize) || normalizedSize <= 0) {
@@ -117,6 +121,9 @@ export function findAllWords(board, size, dictionary) {
   const neighbors = buildNeighbors(normalizedSize);
   const visited = Array(totalCells).fill(false);
   const foundWords = new Set();
+  const wordPathByWord = {};
+  const currentPath = [];
+  const minimumWordLength = getMinimumWordLength(normalizedSize);
 
   function dfs(index, trieNode, currentWord) {
     if (visited[index]) {
@@ -134,11 +141,13 @@ export function findAllWords(board, size, dictionary) {
     }
 
     const nextWord = `${currentWord}${tileValue}`;
-    if (nextTrieNode.isWord && nextWord.length >= 3) {
-      foundWords.add(nextWord);
-    }
-
     visited[index] = true;
+    currentPath.push(index);
+
+    if (nextTrieNode.isWord && nextWord.length >= minimumWordLength && !foundWords.has(nextWord)) {
+      foundWords.add(nextWord);
+      wordPathByWord[nextWord] = [...currentPath];
+    }
 
     for (const neighborIndex of neighbors[index]) {
       if (!visited[neighborIndex]) {
@@ -146,6 +155,7 @@ export function findAllWords(board, size, dictionary) {
       }
     }
 
+    currentPath.pop();
     visited[index] = false;
   }
 
@@ -153,5 +163,14 @@ export function findAllWords(board, size, dictionary) {
     dfs(index, trieRoot, '');
   }
 
-  return Array.from(foundWords).sort();
+  const allWords = Array.from(foundWords).sort();
+
+  return {
+    allWords,
+    wordPathByWord,
+  };
+}
+
+export function findAllWords(board, size, dictionary) {
+  return findAllWordsWithPaths(board, size, dictionary).allWords;
 }
