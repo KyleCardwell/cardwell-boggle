@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Board from './Board'
 import { canConstructWord, getMinimumWordLength } from '../utils/wordValidation'
 
@@ -193,7 +193,7 @@ function SwipeBoard({
     setTracePathState([tileIndex])
   }
 
-  const handleTouchMove = (event) => {
+  const handleTouchMove = useCallback((event) => {
     if (!isTracingRef.current || status !== 'playing') {
       return
     }
@@ -242,7 +242,18 @@ function SwipeBoard({
 
       return [...previousPath, tileIndex]
     })
-  }
+  }, [status, size])
+
+  useEffect(() => {
+    const element = boardWrapperRef.current
+    if (!element) return
+
+    element.addEventListener('touchmove', handleTouchMove, { passive: false })
+
+    return () => {
+      element.removeEventListener('touchmove', handleTouchMove)
+    }
+  }, [status, size, handleTouchMove])
 
   const submitTraceWord = async () => {
     const tracedWord = getWordFromPath(board, tracePathRef.current)
@@ -324,7 +335,6 @@ function SwipeBoard({
         ref={boardWrapperRef}
         className="relative"
         onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchCancel}
       >
