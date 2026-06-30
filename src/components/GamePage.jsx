@@ -35,8 +35,13 @@ import {
   updateGameStatus,
   updatePlayer,
 } from '../store/gameSlice'
-import { addWord, removeWord, setPlayer, setScore } from '../store/playerSlice'
+import { addWord, removeWord, resetPlayer, setPlayer, setScore } from '../store/playerSlice'
 import { scoreWords } from '../utils/scoring'
+import {
+  clearStoredPlayerSession,
+  getStoredPlayerSession,
+  savePlayerSession,
+} from '../utils/playerSession'
 
 const HOVER_HIGHLIGHT_STEP_MS = 200
 
@@ -66,9 +71,14 @@ function GamePage() {
   const endingRef = useRef(false)
   const pauseSourceStatusRef = useRef(null)
   const highlightTimeoutIdsRef = useRef([])
+  const playerIdRef = useRef(player.playerId)
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
   const currentRoundKey = `${game.gameId ?? ''}:${game.startedAt ?? ''}`
+
+  useEffect(() => {
+    playerIdRef.current = player.playerId
+  }, [player.playerId])
 
   const hostId = useMemo(() => {
     const sorted = [...game.players].sort((a, b) => {
@@ -136,6 +146,26 @@ function GamePage() {
         dispatch(setGame(gameRow))
         dispatch(setPlayers(players))
 
+        const storedPlayerSession = getStoredPlayerSession(normalizedGameCode)
+        const candidatePlayerId = String(
+          storedPlayerSession?.playerId ?? playerIdRef.current ?? '',
+        ).trim()
+
+        if (candidatePlayerId) {
+          const currentPlayer = players.find((entry) => entry.id === candidatePlayerId)
+
+          if (currentPlayer) {
+            dispatch(setPlayer(currentPlayer))
+            dispatch(setScore(scoreWords(currentPlayer.words_found)))
+            savePlayerSession(normalizedGameCode, currentPlayer)
+          } else {
+            clearStoredPlayerSession(normalizedGameCode)
+            dispatch(resetPlayer())
+          }
+        } else {
+          dispatch(resetPlayer())
+        }
+
         if (gameRow.status === 'countdown') {
           dispatch(
             startCountdown({
@@ -201,7 +231,15 @@ function GamePage() {
       },
       (payload) => {
         if (payload.eventType === 'DELETE') {
-          dispatch(removePlayer(payload.old?.id))
+          const deletedPlayerId = payload.old?.id
+
+          dispatch(removePlayer(deletedPlayerId))
+
+          if (deletedPlayerId && deletedPlayerId === player.playerId) {
+            clearStoredPlayerSession(normalizedGameCode)
+            dispatch(resetPlayer())
+          }
+
           return
         }
 
@@ -216,6 +254,7 @@ function GamePage() {
         if (updatedPlayer.id === player.playerId) {
           dispatch(setPlayer(updatedPlayer))
           dispatch(setScore(scoreWords(updatedPlayer.words_found)))
+          savePlayerSession(normalizedGameCode, updatedPlayer)
         }
       },
     )
@@ -223,7 +262,7 @@ function GamePage() {
     return () => {
       channel.unsubscribe()
     }
-  }, [dispatch, game.gameId, player.playerId])
+  }, [dispatch, game.gameId, normalizedGameCode, player.playerId])
 
   useEffect(() => {
     if (game.status !== 'countdown' && game.status !== 'playing') {

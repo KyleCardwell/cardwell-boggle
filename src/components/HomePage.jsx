@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { createGame, getPlayersByGameId, joinGame } from '../supabase/gameApi'
 import { setPlayer } from '../store/playerSlice'
 import { setGame, setPlayers } from '../store/gameSlice'
+import { savePlayerSession } from '../utils/playerSession'
 
 const BOARD_SIZES = [3, 4, 5, 6, 7, 8, 9, 10]
 const DEFAULT_DURATION_SECONDS = 180
@@ -39,6 +40,7 @@ function HomePage() {
       dispatch(setGame(game))
       dispatch(setPlayers(players))
       dispatch(setPlayer(player))
+      savePlayerSession(game.game_code, player)
 
       navigate(`/game/${game.game_code}`)
     } catch (error) {
@@ -74,6 +76,7 @@ function HomePage() {
       dispatch(setGame(game))
       dispatch(setPlayers(players))
       dispatch(setPlayer(player))
+      savePlayerSession(game.game_code, player)
 
       navigate(`/game/${game.game_code}`)
     } catch (error) {
