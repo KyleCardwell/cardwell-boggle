@@ -10,6 +10,7 @@ function getInitialState() {
     startedAt: null,
     durationSeconds: 180,
     allWords: [],
+    roundHistory: [],
     players: [],
     countdownRemaining: null,
     timeRemaining: 0,
@@ -155,6 +156,9 @@ const gameSlice = createSlice({
     setAllWords(state, action) {
       state.allWords = Array.isArray(action.payload) ? action.payload : []
     },
+    setRoundHistory(state, action) {
+      state.roundHistory = Array.isArray(action.payload) ? action.payload : []
+    },
     startCountdown(state, action) {
       const payload = action.payload
       const startedAtValue = typeof payload === 'string' ? payload : payload?.startedAt
@@ -251,6 +255,7 @@ export const {
   upsertPlayer,
   removePlayer,
   setAllWords,
+  setRoundHistory,
   startCountdown,
   tickCountdown,
   syncCountdown,

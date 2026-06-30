@@ -13,6 +13,7 @@ import {
   endGame,
   getGameByCode,
   getPlayersByGameId,
+  getRoundHistory,
   pauseGame,
   resetGameToWaiting,
   restartGame,
@@ -29,6 +30,7 @@ import {
   setAllWords,
   setGame,
   setPlayers,
+  setRoundHistory,
   startCountdown,
   syncCountdown,
   syncTimerFromStart,
@@ -138,7 +140,10 @@ function GamePage() {
           return
         }
 
-        const players = await getPlayersByGameId(gameRow.id)
+        const [players, roundHistory] = await Promise.all([
+          getPlayersByGameId(gameRow.id),
+          getRoundHistory(gameRow.id),
+        ])
 
         if (cancelled) {
           return
@@ -147,6 +152,7 @@ function GamePage() {
         setDictionary(dictionarySet)
         dispatch(setGame(gameRow))
         dispatch(setPlayers(players))
+        dispatch(setRoundHistory(roundHistory))
 
         const storedPlayerSession = getStoredPlayerSession(normalizedGameCode)
         const candidatePlayerId = String(
@@ -192,6 +198,53 @@ function GamePage() {
       cancelled = true
     }
   }, [dispatch, normalizedGameCode])
+
+  useEffect(() => {
+    if (!game.gameId || (game.status !== 'finished' && game.status !== 'waiting')) {
+      return undefined
+    }
+
+    let cancelled = false
+    let retryTimeoutId = null
+
+    const loadRoundHistory = async () => {
+      try {
+        const history = await getRoundHistory(game.gameId)
+
+        if (cancelled) {
+          return
+        }
+
+        dispatch(setRoundHistory(history))
+
+        if (game.status === 'finished' && history.length === 0) {
+          retryTimeoutId = setTimeout(async () => {
+            try {
+              const retriedHistory = await getRoundHistory(game.gameId)
+
+              if (!cancelled) {
+                dispatch(setRoundHistory(retriedHistory))
+              }
+            } catch {
+              // ignore retry failures and keep current UI state
+            }
+          }, 600)
+        }
+      } catch {
+        // ignore history loading failures and keep current UI state
+      }
+    }
+
+    loadRoundHistory()
+
+    return () => {
+      cancelled = true
+
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId)
+      }
+    }
+  }, [dispatch, game.gameId, game.status])
 
   useEffect(() => {
     if (!game.gameId) {
@@ -604,13 +657,18 @@ function GamePage() {
 
     endingRef.current = true
 
+    let didFinish = false
+
     try {
       await endGame(game.gameId)
+      didFinish = true
     } catch {
       endingRef.current = false
     }
 
-    dispatch(updateGameStatus('finished'))
+    if (didFinish) {
+      dispatch(updateGameStatus('finished'))
+    }
   }
 
   useEffect(() => {
@@ -791,6 +849,7 @@ function GamePage() {
               key={`${game.gameId ?? 'game'}-${game.boardSize}-${game.durationSeconds}-${canEditSettings ? 'host' : 'guest'}`}
               gameCode={game.gameCode || normalizedGameCode}
               players={game.players}
+              roundHistory={game.roundHistory}
               canStart={canStart}
               boardSize={game.boardSize}
               durationSeconds={game.durationSeconds}
@@ -820,6 +879,7 @@ function GamePage() {
             <Results
               players={game.players}
               allWords={game.allWords}
+              roundHistory={game.roundHistory}
               boardSize={game.boardSize}
               onWordHover={handleAllWordsWordHover}
               onWordHoverEnd={handleAllWordsWordHoverEnd}

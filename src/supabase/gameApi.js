@@ -1,10 +1,62 @@
 import { generateBoard } from '../utils/boardGenerator';
+import { scoreWord } from '../utils/scoring';
+import { getMinimumWordLength } from '../utils/wordValidation';
 import { supabase } from './client';
 
 const GAME_CODE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const GAME_CODE_LENGTH = 4;
 const MAX_CREATE_GAME_ATTEMPTS = 10;
 const COUNTDOWN_LEAD_MS = 10_000;
+
+function normalizeWords(words, minimumWordLength) {
+  if (!Array.isArray(words)) {
+    return [];
+  }
+
+  return words
+    .map((word) => String(word ?? '').trim().toLowerCase())
+    .filter((word) => word.length >= minimumWordLength);
+}
+
+function getSharedWordSet(players, minimumWordLength) {
+  const playerCountByWord = new Map();
+
+  for (const player of Array.isArray(players) ? players : []) {
+    const uniqueWords = new Set(normalizeWords(player?.words_found, minimumWordLength));
+
+    for (const word of uniqueWords) {
+      playerCountByWord.set(word, (playerCountByWord.get(word) ?? 0) + 1);
+    }
+  }
+
+  return new Set(
+    Array.from(playerCountByWord.entries())
+      .filter(([, count]) => count > 1)
+      .map(([word]) => word),
+  );
+}
+
+function buildRoundPlayerSummaries(players, boardSize) {
+  const minimumWordLength = getMinimumWordLength(boardSize);
+  const sharedWordSet = getSharedWordSet(players, minimumWordLength);
+
+  return (Array.isArray(players) ? players : [])
+    .map((player) => {
+      const validWords = normalizeWords(player?.words_found, minimumWordLength);
+      const score = validWords.reduce(
+        (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
+        0,
+      );
+
+      return {
+        player_id: player?.id,
+        display_name: String(player?.display_name ?? '').trim(),
+        score,
+        words_found: validWords.length,
+      };
+    })
+    .filter((summary) => summary.player_id && summary.display_name);
+}
 
 function generateGameCode() {
   let code = '';
@@ -431,6 +483,81 @@ export async function submitWords(playerId, words) {
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to submit words');
 }
 
+export async function saveRoundResults(gameId, players, boardSize) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const playerSummaries = buildRoundPlayerSummaries(players, boardSize);
+
+  if (playerSummaries.length === 0) {
+    return [];
+  }
+
+  const maxRoundQuery = await supabase
+    .from('boggle_rounds')
+    .select('round_number')
+    .eq('game_id', normalizedGameId)
+    .order('round_number', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (maxRoundQuery.error) {
+    throw new Error(`Failed to determine next round number: ${maxRoundQuery.error.message}`);
+  }
+
+  const latestRoundNumber = Number(maxRoundQuery.data?.round_number ?? 0);
+  const nextRoundNumber = Number.isInteger(latestRoundNumber) && latestRoundNumber > 0
+    ? latestRoundNumber + 1
+    : 1;
+  const highestScore = Math.max(...playerSummaries.map((summary) => summary.score));
+
+  const roundRows = playerSummaries.map((summary) => ({
+    game_id: normalizedGameId,
+    round_number: nextRoundNumber,
+    player_id: summary.player_id,
+    display_name: summary.display_name,
+    score: summary.score,
+    words_found: summary.words_found,
+    is_winner: summary.score === highestScore,
+  }));
+
+  const insertQuery = await supabase
+    .from('boggle_rounds')
+    .insert(roundRows)
+    .select('*')
+    .order('score', { ascending: false });
+
+  if (insertQuery.error) {
+    throw new Error(`Failed to save round results: ${insertQuery.error.message}`);
+  }
+
+  return Array.isArray(insertQuery.data) ? insertQuery.data : [];
+}
+
+export async function getRoundHistory(gameId) {
+  const normalizedGameId = String(gameId ?? '').trim();
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  const query = await supabase
+    .from('boggle_rounds')
+    .select('*')
+    .eq('game_id', normalizedGameId)
+    .order('round_number', { ascending: true })
+    .order('score', { ascending: false });
+
+  if (query.error) {
+    throw new Error(`Failed to load round history: ${query.error.message}`);
+  }
+
+  return Array.isArray(query.data) ? query.data : [];
+}
+
 export async function endGame(gameId) {
   const normalizedGameId = String(gameId ?? '').trim();
 
@@ -444,10 +571,20 @@ export async function endGame(gameId) {
       status: 'finished',
     })
     .eq('id', normalizedGameId)
+    .in('status', ['countdown', 'playing', 'paused'])
     .select('*')
-    .single();
+    .maybeSingle();
 
-  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to end game');
+  const endedGame = parseSingleResult(
+    updateResult.data,
+    updateResult.error,
+    'Failed to end game',
+  );
+
+  const players = await getPlayersByGameId(normalizedGameId);
+  await saveRoundResults(normalizedGameId, players, endedGame.board_size);
+
+  return endedGame;
 }
 
 export function subscribeToGame(gameId, onGameUpdate, onPlayersUpdate) {

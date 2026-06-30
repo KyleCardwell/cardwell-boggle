@@ -1,8 +1,6 @@
 import { scoreWord } from '../utils/scoring'
-
-function getMinimumWordLength(boardSize) {
-  return Number(boardSize) === 4 ? 3 : 4
-}
+import { getMinimumWordLength } from '../utils/wordValidation'
+import Scoreboard from './Scoreboard'
 
 function groupWordsByLength(words) {
   const groups = new Map()
@@ -59,6 +57,7 @@ function getSharedWordSet(players, minimumWordLength) {
 function Results({
   players,
   allWords,
+  roundHistory = [],
   boardSize,
   onWordHover,
   onWordHoverEnd,
@@ -140,6 +139,8 @@ function Results({
           ))}
         </div>
       </div>
+
+      {roundHistory.length > 0 ? <Scoreboard roundHistory={roundHistory} players={players} /> : null}
     </section>
   )
 }

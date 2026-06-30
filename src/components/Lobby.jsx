@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Scoreboard from './Scoreboard'
 
 const BOARD_SIZES = [3, 4, 5, 6, 7, 8, 9, 10]
 const DURATION_OPTIONS = [60, 90, 120, 150, 180, 210, 240, 270, 300]
@@ -17,6 +18,7 @@ function formatDurationLabel(durationSeconds) {
 function Lobby({
   gameCode,
   players,
+  roundHistory = [],
   canStart,
   boardSize,
   durationSeconds,
@@ -59,6 +61,8 @@ function Lobby({
           <span className="text-ui-muted">Round time:</span> {formatDurationLabel(durationSeconds)}
         </p>
       </div>
+
+      {roundHistory.length > 0 ? <Scoreboard roundHistory={roundHistory} players={players} /> : null}
 
       {isHost ? (
         <form onSubmit={handleSettingsSubmit} className="mb-4 grid gap-3 rounded-md border border-ui-border p-3">
