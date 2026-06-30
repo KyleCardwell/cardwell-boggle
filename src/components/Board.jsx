@@ -1,4 +1,12 @@
-function Board({ board, size, status, countdownRemaining, highlightedPath = [], isCompact = false }) {
+function Board({
+  board,
+  size,
+  status,
+  countdownRemaining,
+  highlightedPath = [],
+  isCompact = false,
+  gridGapOverride,
+}) {
   if (!Array.isArray(board) || !Number.isInteger(size) || size <= 0) {
     return null
   }
@@ -7,7 +15,7 @@ function Board({ board, size, status, countdownRemaining, highlightedPath = [], 
   const isFinished = status === 'finished'
   const highlightedTileIndexes = new Set(Array.isArray(highlightedPath) ? highlightedPath : [])
   const tileMinSize = isCompact ? '1.15rem' : '2.25rem'
-  const gridGap = isCompact ? '0.2rem' : '0.45rem'
+  const gridGap = gridGapOverride ?? (isCompact ? '0.2rem' : '0.45rem')
   const tileFontSize =
     size <= 3
       ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
@@ -38,6 +46,7 @@ function Board({ board, size, status, countdownRemaining, highlightedPath = [], 
           return (
             <div
               key={`${normalizedTile}-${index}`}
+              data-tile-index={index}
               className={
                 isHighlighted
                   ? 'grid aspect-square place-items-center rounded-[10px] border-2 border-ui-teal bg-ui-teal/20 font-bold uppercase text-ui-text shadow-[0_0_0_2px_rgba(20,184,166,0.28)] transition-colors duration-150 ease-out'

@@ -5,6 +5,7 @@ import Board from './Board'
 import Lobby from './Lobby'
 import PlayerList from './PlayerList'
 import Results from './Results'
+import SwipeBoard from './SwipeBoard'
 import Timer from './Timer'
 import WordInput from './WordInput'
 import {
@@ -66,6 +67,7 @@ function GamePage() {
   const [animatedHighlightedPath, setAnimatedHighlightedPath] = useState([])
   const [highlightedRoundKey, setHighlightedRoundKey] = useState(null)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
+  const [inputMode, setInputMode] = useState('type')
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
@@ -643,14 +645,17 @@ function GamePage() {
   const showResults = game.status === 'finished'
   const showPauseNotice = game.status === 'paused'
   const showPauseModal = isPauseModalOpen && isController
+  const showInputModeToggle = isMobileViewport && showWordInput
+  const effectiveInputMode = showInputModeToggle ? inputMode : 'type'
+  const isSwipeMode = effectiveInputMode === 'swipe'
   const shouldCompactBoardForMobile = isMobileViewport
   const compactBoardWidthPercent =
     game.boardSize >= 8 ? 62 : game.boardSize >= 6 ? 58 : game.boardSize >= 5 ? 54 : 50
   const compactBoardContainerStyle = shouldCompactBoardForMobile
     ? {
-        width: `${compactBoardWidthPercent}%`,
+        width: isSwipeMode ? '100%' : `${compactBoardWidthPercent}%`,
         marginInline: 'auto',
-        transition: 'width 150ms ease-out',
+        transition: 'width 180ms ease-out',
       }
     : undefined
 
@@ -708,18 +713,47 @@ function GamePage() {
             className="min-w-0 w-full lg:basis-[60%] lg:flex-none"
             style={compactBoardContainerStyle}
           >
-            <Board
-              board={game.board}
-              size={game.boardSize}
-              status={game.status}
-              countdownRemaining={game.countdownRemaining}
-              isCompact={shouldCompactBoardForMobile}
-              highlightedPath={
-                showResults && highlightedRoundKey === currentRoundKey
-                  ? animatedHighlightedPath
-                  : []
-              }
-            />
+            {showInputModeToggle ? (
+              <button
+                type="button"
+                onClick={() => setInputMode((previousMode) => (previousMode === 'type' ? 'swipe' : 'type'))}
+                className="mb-3 rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
+              >
+                Type ⇄ Swipe ({effectiveInputMode === 'swipe' ? 'Swipe' : 'Type'})
+              </button>
+            ) : null}
+
+            {isSwipeMode ? (
+              <SwipeBoard
+                board={game.board}
+                size={game.boardSize}
+                status={game.status}
+                countdownRemaining={game.countdownRemaining}
+                isCompact={shouldCompactBoardForMobile}
+                highlightedPath={
+                  showResults && highlightedRoundKey === currentRoundKey
+                    ? animatedHighlightedPath
+                    : []
+                }
+                dictionary={dictionary}
+                boardSize={game.boardSize}
+                wordsFound={player.wordsFound}
+                onSubmitWord={handleSubmitWord}
+              />
+            ) : (
+              <Board
+                board={game.board}
+                size={game.boardSize}
+                status={game.status}
+                countdownRemaining={game.countdownRemaining}
+                isCompact={shouldCompactBoardForMobile}
+                highlightedPath={
+                  showResults && highlightedRoundKey === currentRoundKey
+                    ? animatedHighlightedPath
+                    : []
+                }
+              />
+            )}
           </section>
         ) : null}
 
@@ -730,6 +764,27 @@ function GamePage() {
             timeRemaining={game.timeRemaining}
             onTimeExpired={handleTimerExpired}
           />
+
+          {showWordInput && isSwipeMode ? (
+            <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+              <h3 className="mt-0 text-ui-text">Words Found</h3>
+
+              {player.wordsFound.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {player.wordsFound.map((word) => (
+                    <span
+                      key={word}
+                      className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text"
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-0 mt-2 text-sm text-ui-muted">No words found yet.</p>
+              )}
+            </section>
+          ) : null}
 
           {showLobby ? (
             <Lobby
@@ -747,7 +802,7 @@ function GamePage() {
             />
           ) : null}
 
-          {showWordInput ? (
+          {showWordInput && !isSwipeMode ? (
             <WordInput
               dictionary={dictionary}
               board={game.board}
