@@ -76,13 +76,11 @@ function GamePage() {
   const pauseSourceStatusRef = useRef(null)
   const highlightTimeoutIdsRef = useRef([])
   const playerIdRef = useRef(player.playerId)
+  const gameStartedAtRef = useRef(game.startedAt)
+  const hostIdRef = useRef(null)
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
   const currentRoundKey = `${game.gameId ?? ''}:${game.startedAt ?? ''}`
-
-  useEffect(() => {
-    playerIdRef.current = player.playerId
-  }, [player.playerId])
 
   const hostId = useMemo(() => {
     const sorted = [...game.players].sort((a, b) => {
@@ -93,6 +91,18 @@ function GamePage() {
 
     return sorted[0]?.id ?? null
   }, [game.players])
+
+  useEffect(() => {
+    playerIdRef.current = player.playerId
+  }, [player.playerId])
+
+  useEffect(() => {
+    gameStartedAtRef.current = game.startedAt
+  }, [game.startedAt])
+
+  useEffect(() => {
+    hostIdRef.current = hostId
+  }, [hostId])
 
   const canStart =
     game.status === 'waiting' && game.players.length >= 1 && player.playerId && player.playerId === hostId
@@ -268,6 +278,18 @@ function GamePage() {
         }
 
         if (nextGame.status === 'countdown') {
+          const nextStartedAt = String(nextGame.started_at ?? '').trim()
+          const currentStartedAt = String(gameStartedAtRef.current ?? '').trim()
+          const isNewRound = Boolean(nextStartedAt && nextStartedAt !== currentStartedAt)
+          const isCurrentPlayerHost =
+            Boolean(playerIdRef.current) && playerIdRef.current === hostIdRef.current
+
+          if (isNewRound && playerIdRef.current && !isCurrentPlayerHost) {
+            dispatch(setPlayer({ id: playerIdRef.current, words_found: [], score: 0 }))
+            dispatch(setScore(0))
+            dispatch(setAllWords([]))
+          }
+
           dispatch(
             startCountdown({
               startedAt: nextGame.started_at,
