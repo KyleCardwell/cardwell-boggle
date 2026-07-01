@@ -69,74 +69,74 @@ function Results({
 
   return (
     <section className="grid gap-4">
-      <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
-        <h2 className="mt-0">Results</h2>
-        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
-          {players.map((player) => {
-            const words = normalizeWords(player.words_found, minimumWordLength)
-            const score = words.reduce(
-              (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
-              0,
-            )
+      <div className="max-h-[50vh] overflow-y-auto pr-1.5">
+        <div className="grid gap-4">
+          <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+            <h2 className="mt-0">Results</h2>
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+              {players.map((player) => {
+                const words = normalizeWords(player.words_found, minimumWordLength)
+                const score = words.reduce(
+                  (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
+                  0,
+                )
 
-            return (
-              <article key={player.id} className="rounded-[10px] border border-ui-border bg-ui-surface-alt p-3">
-                <div className="flex items-center justify-between border-b border-ui-border pb-1">
-                  <h3 className="mt-0">{player.display_name}</h3>
-                  <p className="mb-0">Score: {score}</p>
-                </div>
-                <div className="max-h-44 overflow-y-auto pr-1.5">
-                  <ul className="m-0 pl-5 grid grid-cols-3 gap-1">
-                    {words.map((word, index) => (
-                      <li
-                        key={`${player.id}-${word}-${index}`}
-                        className={sharedWordSet.has(word) ? 'text-ui-muted line-through' : undefined}
-                      >
-                        <button
-                          type="button"
-                          className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
-                          onMouseEnter={() => onWordHover?.(word)}
-                          onMouseLeave={() => onWordHoverEnd?.()}
-                          onFocus={() => onWordHover?.(word)}
-                          onBlur={() => onWordHoverEnd?.()}
+                return (
+                  <article key={player.id} className="rounded-[10px] border border-ui-border bg-ui-surface-alt p-3">
+                    <div className="flex items-center justify-between border-b border-ui-border pb-1">
+                      <h3 className="mt-0">{player.display_name}</h3>
+                      <p className="mb-0">Score: {score}</p>
+                    </div>
+                    <ul className="m-0 pl-5 grid grid-cols-3 gap-1">
+                      {words.map((word, index) => (
+                        <li
+                          key={`${player.id}-${word}-${index}`}
+                          className={sharedWordSet.has(word) ? 'text-ui-muted line-through' : undefined}
                         >
-                          {word}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </article>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
-        <h3 className="mt-0">All Possible Words ({filteredAllWords.length})</h3>
-        <div className="max-h-64 overflow-y-auto pr-1.5">
-          {groupedAllWords.map(([length, words]) => (
-            <div key={length} className="mb-3">
-              <p className="mb-1.5 font-semibold">{length} letters</p>
-              <p className="m-0 text-ui-muted leading-relaxed">
-                {words.map((word, index) => (
-                  <span key={`${length}-${word}-${index}`}>
-                    <button
-                      type="button"
-                      className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
-                      onMouseEnter={() => onWordHover?.(word)}
-                      onMouseLeave={() => onWordHoverEnd?.()}
-                      onFocus={() => onWordHover?.(word)}
-                      onBlur={() => onWordHoverEnd?.()}
-                    >
-                      {word}
-                    </button>
-                    {index < words.length - 1 ? ', ' : null}
-                  </span>
-                ))}
-              </p>
+                          <button
+                            type="button"
+                            className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
+                            onMouseEnter={() => onWordHover?.(word)}
+                            onMouseLeave={() => onWordHoverEnd?.()}
+                            onFocus={() => onWordHover?.(word)}
+                            onBlur={() => onWordHoverEnd?.()}
+                          >
+                            {word}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                )
+              })}
             </div>
-          ))}
+          </div>
+
+          <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+            <h3 className="mt-0">All Possible Words ({filteredAllWords.length})</h3>
+            {groupedAllWords.map(([length, words]) => (
+              <div key={length} className="mb-3">
+                <p className="mb-1.5 font-semibold">{length} letters</p>
+                <p className="m-0 text-ui-muted leading-relaxed">
+                  {words.map((word, index) => (
+                    <span key={`${length}-${word}-${index}`}>
+                      <button
+                        type="button"
+                        className="inline cursor-pointer border-none bg-transparent p-0 text-inherit underline-offset-2 transition-colors hover:text-ui-text hover:underline focus-visible:text-ui-text focus-visible:underline focus-visible:outline-none"
+                        onMouseEnter={() => onWordHover?.(word)}
+                        onMouseLeave={() => onWordHoverEnd?.()}
+                        onFocus={() => onWordHover?.(word)}
+                        onBlur={() => onWordHoverEnd?.()}
+                      >
+                        {word}
+                      </button>
+                      {index < words.length - 1 ? ', ' : null}
+                    </span>
+                  ))}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
