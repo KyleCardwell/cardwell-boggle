@@ -747,12 +747,14 @@ function GamePage() {
   const showInputModeToggle = isMobileViewport && showWordInput
   const effectiveInputMode = showInputModeToggle ? inputMode : 'type'
   const isSwipeMode = effectiveInputMode === 'swipe'
+  const isTapMode = effectiveInputMode === 'tap'
+  const isBoardTraceMode = isSwipeMode || isTapMode
   const shouldCompactBoardForMobile = isMobileViewport
   const compactBoardWidthPercent =
     game.boardSize >= 8 ? 62 : game.boardSize >= 6 ? 58 : game.boardSize >= 5 ? 54 : 50
   const compactBoardContainerStyle = shouldCompactBoardForMobile
     ? {
-        width: isSwipeMode ? '100%' : `${compactBoardWidthPercent}%`,
+        width: isBoardTraceMode ? '100%' : `${compactBoardWidthPercent}%`,
         marginInline: 'auto',
         transition: 'width 180ms ease-out',
       }
@@ -841,6 +843,19 @@ function GamePage() {
                     >
                       Swipe
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInputMode('tap')}
+                      aria-pressed={effectiveInputMode === 'tap'}
+                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                        effectiveInputMode === 'tap'
+                          ? 'bg-ui-primary text-ui-input-text hover:bg-ui-primary-hover'
+                          : 'bg-ui-input-bg text-ui-muted hover:bg-ui-surface-hover'
+                      }`}
+                    >
+                      Tap
+                    </button>
                   </div>
 
                   <span className="text-lg font-bold text-ui-text [font-variant-numeric:tabular-nums]">
@@ -859,12 +874,13 @@ function GamePage() {
               </>
             ) : null}
 
-            {isSwipeMode ? (
+            {isBoardTraceMode ? (
               <SwipeBoard
                 board={game.board}
                 size={game.boardSize}
                 status={game.status}
                 countdownRemaining={game.countdownRemaining}
+                inputMode={effectiveInputMode}
                 isCompact={shouldCompactBoardForMobile}
                 highlightedPath={
                   showResults && highlightedRoundKey === currentRoundKey
@@ -903,7 +919,7 @@ function GamePage() {
             />
           ) : null}
 
-          {showWordInput && isSwipeMode ? (
+          {showWordInput && isBoardTraceMode ? (
             <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
               <h3 className="mt-0 text-ui-text">{player.wordsFound.length} Word{player.wordsFound.length !== 1 ? 's' : ''} Found</h3>
 
@@ -941,7 +957,7 @@ function GamePage() {
             />
           ) : null}
 
-          {showWordInput && !isSwipeMode ? (
+          {showWordInput && !isBoardTraceMode ? (
             <WordInput
               dictionary={dictionary}
               board={game.board}

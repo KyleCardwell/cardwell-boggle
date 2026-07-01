@@ -25,6 +25,38 @@ function areAdjacent(fromIndex, toIndex, size) {
   return Math.abs(fromRow - toRow) <= 1 && Math.abs(fromCol - toCol) <= 1
 }
 
+function appendTileToPath(previousPath, tileIndex, size) {
+  if (!Number.isInteger(tileIndex)) {
+    return previousPath
+  }
+
+  if (previousPath.length === 0) {
+    return [tileIndex]
+  }
+
+  const lastIndex = previousPath[previousPath.length - 1]
+
+  if (tileIndex === lastIndex) {
+    return previousPath
+  }
+
+  const secondToLastIndex = previousPath.length > 1 ? previousPath[previousPath.length - 2] : null
+
+  if (secondToLastIndex !== null && tileIndex === secondToLastIndex) {
+    return previousPath.slice(0, -1)
+  }
+
+  if (previousPath.includes(tileIndex)) {
+    return previousPath
+  }
+
+  if (!areAdjacent(lastIndex, tileIndex, size)) {
+    return previousPath
+  }
+
+  return [...previousPath, tileIndex]
+}
+
 function getWordFromPath(board, path) {
   return path.map((index) => String(board[index] ?? '').trim().toLowerCase()).join('')
 }
@@ -58,6 +90,7 @@ function SwipeBoard({
   size,
   status,
   countdownRemaining,
+  inputMode = 'swipe',
   highlightedPath = [],
   isCompact = false,
   dictionary,
@@ -93,6 +126,8 @@ function SwipeBoard({
     return '0.7rem'
   }, [activeBoardSize])
   const currentTracedWord = useMemo(() => getWordFromPath(board, tracePath), [board, tracePath])
+  const isSwipeMode = inputMode === 'swipe'
+  const isTapMode = inputMode === 'tap'
 
   const activeHighlightedPath = tracePath.length > 0 ? tracePath : highlightedPath
   const tracePolylinePoints = tracePoints.map((point) => `${point.x},${point.y}`).join(' ')
@@ -178,7 +213,7 @@ function SwipeBoard({
   )
 
   const handleTouchStart = (event) => {
-    if (status !== 'playing') {
+    if (!isSwipeMode || status !== 'playing') {
       return
     }
 
@@ -194,7 +229,7 @@ function SwipeBoard({
   }
 
   const handleTouchMove = useCallback((event) => {
-    if (!isTracingRef.current || status !== 'playing') {
+    if (!isSwipeMode || !isTracingRef.current || status !== 'playing') {
       return
     }
 
@@ -216,35 +251,15 @@ function SwipeBoard({
     }
 
     setTracePathState((previousPath) => {
-      if (previousPath.length === 0) {
-        return previousPath
-      }
-
-      const lastIndex = previousPath[previousPath.length - 1]
-
-      if (tileIndex === lastIndex) {
-        return previousPath
-      }
-
-      const secondToLastIndex = previousPath.length > 1 ? previousPath[previousPath.length - 2] : null
-
-      if (secondToLastIndex !== null && tileIndex === secondToLastIndex) {
-        return previousPath.slice(0, -1)
-      }
-
-      if (previousPath.includes(tileIndex)) {
-        return previousPath
-      }
-
-      if (!areAdjacent(lastIndex, tileIndex, size)) {
-        return previousPath
-      }
-
-      return [...previousPath, tileIndex]
+      return appendTileToPath(previousPath, tileIndex, size)
     })
-  }, [status, size])
+  }, [isSwipeMode, status, size])
 
   useEffect(() => {
+    if (!isSwipeMode) {
+      return undefined
+    }
+
     const element = boardWrapperRef.current
     if (!element) return
 
@@ -253,13 +268,57 @@ function SwipeBoard({
     return () => {
       element.removeEventListener('touchmove', handleTouchMove)
     }
-  }, [status, size, handleTouchMove])
+  }, [isSwipeMode, status, size, handleTouchMove])
+
+  const handleTapTileClick = (event) => {
+    if (!isTapMode || status !== 'playing') {
+      return
+    }
+
+    const tileIndex = getTileIndexFromElement(event.target)
+
+    if (tileIndex === null) {
+      return
+    }
+
+    setFeedback(null)
+    setTracePathState((previousPath) => {
+      const lastIndex = previousPath[previousPath.length - 1]
+
+      if (tileIndex === lastIndex) {
+        return previousPath.slice(0, -1)
+      }
+
+      return appendTileToPath(previousPath, tileIndex, size)
+    })
+  }
+
+  const handleTapCancel = () => {
+    if (!isTapMode) {
+      return
+    }
+
+    setFeedback(null)
+    clearTracePath()
+  }
+
+  const handleTapSubmit = async () => {
+    if (!isTapMode || status !== 'playing') {
+      return
+    }
+
+    const wasSubmitted = await submitTraceWord()
+
+    if (wasSubmitted) {
+      clearTracePath()
+    }
+  }
 
   const submitTraceWord = async () => {
     const tracedWord = getWordFromPath(board, tracePathRef.current)
 
     if (!tracedWord) {
-      return
+      return false
     }
 
     if (tracedWord.length < minimumWordLength) {
@@ -267,7 +326,7 @@ function SwipeBoard({
         type: 'error',
         message: `Word must be at least ${minimumWordLength} letters.`,
       })
-      return
+      return false
     }
 
     if (!dictionary?.has(tracedWord)) {
@@ -275,7 +334,7 @@ function SwipeBoard({
         type: 'error',
         message: 'Word is not in dictionary.',
       })
-      return
+      return false
     }
 
     if (wordsSet.has(tracedWord)) {
@@ -283,7 +342,7 @@ function SwipeBoard({
         type: 'error',
         message: 'You already found that word.',
       })
-      return
+      return false
     }
 
     if (!canConstructWord(board, size, tracedWord)) {
@@ -291,7 +350,7 @@ function SwipeBoard({
         type: 'error',
         message: 'Word is not constructable from this board.',
       })
-      return
+      return false
     }
 
     try {
@@ -300,15 +359,21 @@ function SwipeBoard({
         type: 'success',
         message: `✓ ${tracedWord.toUpperCase()} added`,
       })
+      return true
     } catch (error) {
       showFeedback({
         type: 'error',
         message: error.message || 'Unable to submit word.',
       })
+      return false
     }
   }
 
   const handleTouchEnd = async () => {
+    if (!isSwipeMode) {
+      return
+    }
+
     if (!isTracingRef.current) {
       clearTracePath()
       return
@@ -320,23 +385,58 @@ function SwipeBoard({
   }
 
   const handleTouchCancel = () => {
+    if (!isSwipeMode) {
+      return
+    }
+
     isTracingRef.current = false
     clearTracePath()
   }
 
+  const wordBarMessage = feedback?.message ??
+    (currentTracedWord
+      ? currentTracedWord.toUpperCase()
+      : isTapMode
+        ? 'Tap adjacent tiles to spell'
+        : 'Swipe across adjacent tiles to spell')
+
   return (
     <section className="grid gap-3">
-      <div className={wordBarClassName}>
-        {feedback?.message ??
-          (currentTracedWord ? currentTracedWord.toUpperCase() : 'Swipe across adjacent tiles to spell')}
-      </div>
+      {isTapMode ? (
+        <div className={`${wordBarClassName} flex items-center justify-between gap-2 text-left`}>
+          <button
+            type="button"
+            onClick={handleTapCancel}
+            disabled={tracePath.length === 0}
+            aria-label="Clear traced word"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            ×
+          </button>
+
+          <span className="min-w-0 flex-1 text-center text-sm font-semibold text-inherit">{wordBarMessage}</span>
+
+          <button
+            type="button"
+            onClick={handleTapSubmit}
+            disabled={tracePath.length === 0 || status !== 'playing'}
+            aria-label="Submit traced word"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            ✓
+          </button>
+        </div>
+      ) : (
+        <div className={wordBarClassName}>{wordBarMessage}</div>
+      )}
 
       <div
         ref={boardWrapperRef}
         className="relative"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
+        onTouchStart={isSwipeMode ? handleTouchStart : undefined}
+        onTouchEnd={isSwipeMode ? handleTouchEnd : undefined}
+        onTouchCancel={isSwipeMode ? handleTouchCancel : undefined}
+        onClick={isTapMode ? handleTapTileClick : undefined}
       >
         <Board
           board={board}
