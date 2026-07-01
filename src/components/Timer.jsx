@@ -38,7 +38,7 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
 
   if (status === 'playing') {
     return (
-      <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-center text-[1.6rem] font-bold text-ui-text [font-variant-numeric:tabular-nums]">
+      <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-center text-[1.5rem] font-bold text-ui-text [font-variant-numeric:tabular-nums]">
         Time Remaining: {formatSeconds(timeRemaining)}
       </section>
     )

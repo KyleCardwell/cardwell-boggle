@@ -48,6 +48,14 @@ import {
 
 const HOVER_HIGHLIGHT_STEP_MS = 200
 
+function formatCompactTime(seconds) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0)
+  const minutes = Math.floor(safeSeconds / 60)
+  const remainder = safeSeconds % 60
+
+  return `${minutes}:${String(remainder).padStart(2, '0')}`
+}
+
 function GamePage() {
   const { gameCode } = useParams()
   const navigate = useNavigate()
@@ -78,6 +86,7 @@ function GamePage() {
   const playerIdRef = useRef(player.playerId)
   const gameStartedAtRef = useRef(game.startedAt)
   const hostIdRef = useRef(null)
+  const wasShowingInputModeToggleRef = useRef(false)
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
   const currentRoundKey = `${game.gameId ?? ''}:${game.startedAt ?? ''}`
@@ -426,6 +435,16 @@ function GamePage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const isShowingInputModeToggle = isMobileViewport && game.status === 'playing'
+
+    if (isShowingInputModeToggle && !wasShowingInputModeToggleRef.current) {
+      setInputMode('swipe')
+    }
+
+    wasShowingInputModeToggleRef.current = isShowingInputModeToggle
+  }, [game.status, isMobileViewport])
 
   const handleStartGame = async () => {
     if (!game.gameId) {
@@ -794,13 +813,50 @@ function GamePage() {
             style={compactBoardContainerStyle}
           >
             {showInputModeToggle ? (
-              <button
-                type="button"
-                onClick={() => setInputMode((previousMode) => (previousMode === 'type' ? 'swipe' : 'type'))}
-                className="mb-3 rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
-              >
-                Type ⇄ Swipe ({effectiveInputMode === 'swipe' ? 'Swipe' : 'Type'})
-              </button>
+              <>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1 rounded-md border border-ui-border bg-ui-surface p-1">
+                    <button
+                      type="button"
+                      onClick={() => setInputMode('type')}
+                      aria-pressed={effectiveInputMode === 'type'}
+                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                        effectiveInputMode === 'type'
+                          ? 'bg-ui-primary text-ui-input-text hover:bg-ui-primary-hover'
+                          : 'bg-ui-input-bg text-ui-muted hover:bg-ui-surface-hover'
+                      }`}
+                    >
+                      Type
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setInputMode('swipe')}
+                      aria-pressed={effectiveInputMode === 'swipe'}
+                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
+                        effectiveInputMode === 'swipe'
+                          ? 'bg-ui-primary text-ui-input-text hover:bg-ui-primary-hover'
+                          : 'bg-ui-input-bg text-ui-muted hover:bg-ui-surface-hover'
+                      }`}
+                    >
+                      Swipe
+                    </button>
+                  </div>
+
+                  <span className="text-lg font-bold text-ui-text [font-variant-numeric:tabular-nums]">
+                    Time: {formatCompactTime(game.timeRemaining)}
+                  </span>
+                </div>
+
+                <div className="hidden">
+                  <Timer
+                    status={game.status}
+                    countdownRemaining={game.countdownRemaining}
+                    timeRemaining={game.timeRemaining}
+                    onTimeExpired={handleTimerExpired}
+                  />
+                </div>
+              </>
             ) : null}
 
             {isSwipeMode ? (
@@ -838,16 +894,18 @@ function GamePage() {
         ) : null}
 
         <section className="grid min-w-0 w-full content-start gap-4 overflow-x-hidden lg:basis-[40%] lg:flex-none">
-          <Timer
-            status={game.status}
-            countdownRemaining={game.countdownRemaining}
-            timeRemaining={game.timeRemaining}
-            onTimeExpired={handleTimerExpired}
-          />
+          {!showInputModeToggle ? (
+            <Timer
+              status={game.status}
+              countdownRemaining={game.countdownRemaining}
+              timeRemaining={game.timeRemaining}
+              onTimeExpired={handleTimerExpired}
+            />
+          ) : null}
 
           {showWordInput && isSwipeMode ? (
             <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
-              <h3 className="mt-0 text-ui-text">Words Found</h3>
+              <h3 className="mt-0 text-ui-text">{player.wordsFound.length} Word{player.wordsFound.length !== 1 ? 's' : ''} Found</h3>
 
               {player.wordsFound.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
