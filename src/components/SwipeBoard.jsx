@@ -101,11 +101,14 @@ function SwipeBoard({
   const [tracePath, setTracePath] = useState([])
   const [tracePoints, setTracePoints] = useState([])
   const [feedback, setFeedback] = useState(null)
+  const [activeTraceMethod, setActiveTraceMethod] = useState(null)
 
   const boardWrapperRef = useRef(null)
   const tracePathRef = useRef([])
   const isTracingRef = useRef(false)
   const feedbackTimeoutRef = useRef(null)
+  const activeTraceMethodRef = useRef(null)
+  const suppressTileClickUntilRef = useRef(0)
 
   const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
   const activeBoardSize = Number.isInteger(boardSize) ? boardSize : size
@@ -128,6 +131,9 @@ function SwipeBoard({
   const currentTracedWord = useMemo(() => getWordFromPath(board, tracePath), [board, tracePath])
   const isSwipeMode = inputMode === 'swipe'
   const isTapMode = inputMode === 'tap'
+  const isTraceMode = isSwipeMode || isTapMode
+  const isHybridTraceMode = isSwipeMode
+  const isTapTraceActive = activeTraceMethod === 'tap'
 
   const activeHighlightedPath = tracePath.length > 0 ? tracePath : highlightedPath
   const tracePolylinePoints = tracePoints.map((point) => `${point.x},${point.y}`).join(' ')
@@ -135,6 +141,8 @@ function SwipeBoard({
   const wordBarClassName =
     feedback?.type === 'success'
       ? 'rounded-xl border border-ui-teal bg-ui-teal/20 px-3 py-2 text-center text-sm font-semibold text-ui-text animate-[pulse_220ms_ease-out_1]'
+      : feedback?.type === 'warning'
+        ? 'rounded-xl border border-yellow-400 bg-yellow-400/15 px-3 py-2 text-center text-sm font-semibold text-yellow-300 animate-[pulse_220ms_ease-out_1]'
       : feedback?.type === 'error'
         ? 'rounded-xl border border-ui-danger bg-ui-danger/15 px-3 py-2 text-center text-sm font-semibold text-ui-danger animate-[pulse_220ms_ease-out_1]'
         : 'rounded-xl border border-ui-border bg-ui-surface px-3 py-2 text-center text-sm font-semibold text-ui-muted'
@@ -148,7 +156,14 @@ function SwipeBoard({
     })
   }
 
+  const setActiveTraceMethodState = (nextMethod) => {
+    activeTraceMethodRef.current = nextMethod
+    setActiveTraceMethod(nextMethod)
+  }
+
   const clearTracePath = () => {
+    isTracingRef.current = false
+    setActiveTraceMethodState(null)
     setTracePathState([])
     setTracePoints([])
   }
@@ -213,7 +228,11 @@ function SwipeBoard({
   )
 
   const handleTouchStart = (event) => {
-    if (!isSwipeMode || status !== 'playing') {
+    if (!isTraceMode || status !== 'playing') {
+      return
+    }
+
+    if (!isHybridTraceMode || activeTraceMethodRef.current === 'tap') {
       return
     }
 
@@ -229,7 +248,7 @@ function SwipeBoard({
   }
 
   const handleTouchMove = useCallback((event) => {
-    if (!isSwipeMode || !isTracingRef.current || status !== 'playing') {
+    if (!isHybridTraceMode || !isTracingRef.current || status !== 'playing') {
       return
     }
 
@@ -251,12 +270,18 @@ function SwipeBoard({
     }
 
     setTracePathState((previousPath) => {
-      return appendTileToPath(previousPath, tileIndex, size)
+      const nextPath = appendTileToPath(previousPath, tileIndex, size)
+
+      if (nextPath.length > 1 && activeTraceMethodRef.current !== 'swipe') {
+        setActiveTraceMethodState('swipe')
+      }
+
+      return nextPath
     })
-  }, [isSwipeMode, status, size])
+  }, [isHybridTraceMode, status, size])
 
   useEffect(() => {
-    if (!isSwipeMode) {
+    if (!isTraceMode) {
       return undefined
     }
 
@@ -268,10 +293,18 @@ function SwipeBoard({
     return () => {
       element.removeEventListener('touchmove', handleTouchMove)
     }
-  }, [isSwipeMode, status, size, handleTouchMove])
+  }, [isTraceMode, handleTouchMove])
 
   const handleTapTileClick = (event) => {
-    if (!isTapMode || status !== 'playing') {
+    if (!isTraceMode || status !== 'playing') {
+      return
+    }
+
+    if (Date.now() < suppressTileClickUntilRef.current) {
+      return
+    }
+
+    if (activeTraceMethodRef.current === 'swipe') {
       return
     }
 
@@ -282,19 +315,36 @@ function SwipeBoard({
     }
 
     setFeedback(null)
+
+    if (activeTraceMethodRef.current === null) {
+      setActiveTraceMethodState('tap')
+    }
+
     setTracePathState((previousPath) => {
       const lastIndex = previousPath[previousPath.length - 1]
 
       if (tileIndex === lastIndex) {
-        return previousPath.slice(0, -1)
+        const nextPath = previousPath.slice(0, -1)
+
+        if (nextPath.length === 0) {
+          setActiveTraceMethodState(null)
+        }
+
+        return nextPath
       }
 
-      return appendTileToPath(previousPath, tileIndex, size)
+      const nextPath = appendTileToPath(previousPath, tileIndex, size)
+
+      if (nextPath.length === 0) {
+        setActiveTraceMethodState(null)
+      }
+
+      return nextPath
     })
   }
 
-  const handleTapCancel = () => {
-    if (!isTapMode) {
+  const handleTraceCancel = () => {
+    if (!isTraceMode) {
       return
     }
 
@@ -302,16 +352,13 @@ function SwipeBoard({
     clearTracePath()
   }
 
-  const handleTapSubmit = async () => {
-    if (!isTapMode || status !== 'playing') {
+  const handleTraceSubmit = async () => {
+    if (!isTraceMode || status !== 'playing') {
       return
     }
 
-    const wasSubmitted = await submitTraceWord()
-
-    if (wasSubmitted) {
-      clearTracePath()
-    }
+    await submitTraceWord()
+    clearTracePath()
   }
 
   const submitTraceWord = async () => {
@@ -339,7 +386,7 @@ function SwipeBoard({
 
     if (wordsSet.has(tracedWord)) {
       showFeedback({
-        type: 'error',
+        type: 'warning',
         message: 'You already found that word.',
       })
       return false
@@ -370,22 +417,33 @@ function SwipeBoard({
   }
 
   const handleTouchEnd = async () => {
-    if (!isSwipeMode) {
+    if (!isTraceMode) {
       return
     }
 
     if (!isTracingRef.current) {
+      if (activeTraceMethodRef.current === 'tap') {
+        return
+      }
+
       clearTracePath()
       return
     }
 
     isTracingRef.current = false
+
+    if (activeTraceMethodRef.current !== 'swipe') {
+      clearTracePath()
+      return
+    }
+
+    suppressTileClickUntilRef.current = Date.now() + 500
     await submitTraceWord()
     clearTracePath()
   }
 
   const handleTouchCancel = () => {
-    if (!isSwipeMode) {
+    if (!isTraceMode) {
       return
     }
 
@@ -393,50 +451,56 @@ function SwipeBoard({
     clearTracePath()
   }
 
+  const cancelButtonClassName = isTapTraceActive
+    ? 'grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-danger bg-ui-danger/15 text-base font-bold text-ui-danger transition-colors hover:bg-ui-danger/25 disabled:cursor-not-allowed disabled:opacity-50'
+    : 'grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50'
+
+  const submitButtonClassName = isTapTraceActive
+    ? 'grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-teal bg-ui-teal/20 text-base font-bold text-ui-teal transition-colors hover:bg-ui-teal/30 disabled:cursor-not-allowed disabled:opacity-50'
+    : 'grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50'
+
   const wordBarMessage = feedback?.message ??
     (currentTracedWord
       ? currentTracedWord.toUpperCase()
-      : isTapMode
+      : isTapMode || isTapTraceActive
         ? 'Tap adjacent tiles to spell'
-        : 'Swipe across adjacent tiles to spell')
+        : isTraceMode
+          ? 'Tap or swipe adjacent tiles to spell'
+          : 'Swipe across adjacent tiles to spell')
 
   return (
     <section className="grid gap-3">
-      {isTapMode ? (
-        <div className={`${wordBarClassName} flex items-center justify-between gap-2 text-left`}>
-          <button
-            type="button"
-            onClick={handleTapCancel}
-            disabled={tracePath.length === 0}
-            aria-label="Clear traced word"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            ×
-          </button>
+      <div className={`${wordBarClassName} flex items-center justify-between gap-2 text-left`}>
+        <button
+          type="button"
+          onClick={handleTraceCancel}
+          disabled={tracePath.length === 0}
+          aria-label="Clear traced word"
+          className={cancelButtonClassName}
+        >
+          ×
+        </button>
 
-          <span className="min-w-0 flex-1 text-center text-sm font-semibold text-inherit">{wordBarMessage}</span>
+        <span className="min-w-0 flex-1 text-center text-sm font-semibold text-inherit">{wordBarMessage}</span>
 
-          <button
-            type="button"
-            onClick={handleTapSubmit}
-            disabled={tracePath.length === 0 || status !== 'playing'}
-            aria-label="Submit traced word"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-ui-input-border bg-ui-input-bg text-base font-bold text-ui-input-text transition-colors hover:bg-ui-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            ✓
-          </button>
-        </div>
-      ) : (
-        <div className={wordBarClassName}>{wordBarMessage}</div>
-      )}
+        <button
+          type="button"
+          onClick={handleTraceSubmit}
+          disabled={tracePath.length === 0 || status !== 'playing'}
+          aria-label="Submit traced word"
+          className={submitButtonClassName}
+        >
+          ✓
+        </button>
+      </div>
 
       <div
         ref={boardWrapperRef}
         className="relative"
-        onTouchStart={isSwipeMode ? handleTouchStart : undefined}
-        onTouchEnd={isSwipeMode ? handleTouchEnd : undefined}
-        onTouchCancel={isSwipeMode ? handleTouchCancel : undefined}
-        onClick={isTapMode ? handleTapTileClick : undefined}
+        onTouchStart={isTraceMode ? handleTouchStart : undefined}
+        onTouchEnd={isTraceMode ? handleTouchEnd : undefined}
+        onTouchCancel={isTraceMode ? handleTouchCancel : undefined}
+        onClick={isTraceMode ? handleTapTileClick : undefined}
       >
         <Board
           board={board}

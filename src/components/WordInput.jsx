@@ -23,7 +23,9 @@ function WordInput({
       return
     }
 
-    const normalizedWord = value.trim().toLowerCase()
+    const submittedValue = value
+    const normalizedWord = submittedValue.trim().toLowerCase()
+    setValue('')
 
     if (normalizedWord.length < minimumWordLength) {
       setErrorMessage(`Word must be at least ${minimumWordLength} letters.`)

@@ -747,8 +747,7 @@ function GamePage() {
   const showInputModeToggle = isMobileViewport && showWordInput
   const effectiveInputMode = showInputModeToggle ? inputMode : 'type'
   const isSwipeMode = effectiveInputMode === 'swipe'
-  const isTapMode = effectiveInputMode === 'tap'
-  const isBoardTraceMode = isSwipeMode || isTapMode
+  const isBoardTraceMode = isSwipeMode
   const shouldCompactBoardForMobile = isMobileViewport
   const compactBoardWidthPercent =
     game.boardSize >= 8 ? 62 : game.boardSize >= 6 ? 58 : game.boardSize >= 5 ? 54 : 50
@@ -842,19 +841,6 @@ function GamePage() {
                       }`}
                     >
                       Swipe
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setInputMode('tap')}
-                      aria-pressed={effectiveInputMode === 'tap'}
-                      className={`rounded px-3 py-1.5 text-sm font-medium transition-colors ${
-                        effectiveInputMode === 'tap'
-                          ? 'bg-ui-primary text-ui-input-text hover:bg-ui-primary-hover'
-                          : 'bg-ui-input-bg text-ui-muted hover:bg-ui-surface-hover'
-                      }`}
-                    >
-                      Tap
                     </button>
                   </div>
 
