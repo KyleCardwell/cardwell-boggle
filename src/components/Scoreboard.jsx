@@ -111,14 +111,14 @@ function Scoreboard({ roundHistory, players }) {
       <h3 className="mt-0">Scoreboard</h3>
 
       <div className="w-full overflow-x-auto">
-        <table className="w-full table-fixed border-collapse text-left text-sm">
+        <table className="w-full table-fixed border-collapse text-center text-sm">
           <thead>
             <tr className="border-b border-ui-border text-ui-muted">
               <th className="px-2 py-2 font-semibold">Rank</th>
               <th className="px-2 py-2 font-semibold">Player</th>
               <th className="px-2 py-2 font-semibold">Wins</th>
-              <th className="px-2 py-2 font-semibold">Total Score</th>
               <th className="px-2 py-2 font-semibold">Total Words</th>
+              <th className="px-2 py-2 font-semibold text-center">Total Score</th>
             </tr>
           </thead>
           <tbody>
@@ -133,8 +133,8 @@ function Scoreboard({ roundHistory, players }) {
                   <td className="px-2 py-2 font-semibold">{row.rank}</td>
                   <td className="px-2 py-2 break-words">{row.displayName}</td>
                   <td className="px-2 py-2">{row.wins}</td>
-                  <td className="px-2 py-2 font-semibold">{row.totalScore}</td>
                   <td className="px-2 py-2">{row.totalWords}</td>
+                  <td className="px-2 py-2 font-semibold bg-emerald-800">{row.totalScore}</td>
                 </tr>
               )
             })}
@@ -158,14 +158,31 @@ function Scoreboard({ roundHistory, players }) {
                   </p>
                 </div>
 
-                <ul className="mb-0 mt-2 grid gap-1 pl-5 text-sm">
-                  {round.rows.map((row) => (
-                    <li key={row.id ?? `${round.roundNumber}-${row.player_id}`}>
-                      <span className="font-medium">{row.display_name}</span> — {row.score} pts, {row.words_found}{' '}
-                      words{row.is_winner ? ' (winner)' : ''}
-                    </li>
-                  ))}
-                </ul>
+                <div className="mt-2 w-full overflow-x-auto">
+                  <table className="w-full table-fixed border-collapse text-center text-sm">
+                    <thead>
+                      <tr className="border-b border-ui-border text-ui-muted">
+                        <th className="px-2 py-2 font-semibold">Player</th>
+                        <th className="px-2 py-2 font-semibold">Points</th>
+                        <th className="px-2 py-2 font-semibold">Words</th>
+                        <th className="px-2 py-2 font-semibold">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {round.rows.map((row, index) => (
+                        <tr
+                          key={row.id ?? `${round.roundNumber}-${row.player_id}`}
+                          className={index === 0 ? '' : 'border-t border-ui-border/60'}
+                        >
+                          <td className="px-2 py-2 break-words">{row.display_name}</td>
+                          <td className="px-2 py-2">{row.score}</td>
+                          <td className="px-2 py-2">{row.words_found}</td>
+                          <td className="px-2 py-2 font-semibold">{row.is_winner ? 'winner' : ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </article>
             )
           })}

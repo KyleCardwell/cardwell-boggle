@@ -224,7 +224,35 @@ function GamePage() {
     }
 
     let cancelled = false
-    let retryTimeoutId = null
+    const retryTimeoutIds = []
+    const finishedRefreshAttempts = 3
+    const finishedRefreshDelayMs = 600
+
+    const scheduleFinishedRefresh = (attemptNumber) => {
+      if (game.status !== 'finished' || attemptNumber > finishedRefreshAttempts) {
+        return
+      }
+
+      const timeoutId = setTimeout(async () => {
+        if (cancelled) {
+          return
+        }
+
+        try {
+          const retriedHistory = await getRoundHistory(game.gameId)
+
+          if (!cancelled) {
+            dispatch(setRoundHistory(retriedHistory))
+          }
+        } catch {
+          // ignore retry failures and keep current UI state
+        }
+
+        scheduleFinishedRefresh(attemptNumber + 1)
+      }, finishedRefreshDelayMs)
+
+      retryTimeoutIds.push(timeoutId)
+    }
 
     const loadRoundHistory = async () => {
       try {
@@ -236,21 +264,10 @@ function GamePage() {
 
         dispatch(setRoundHistory(history))
 
-        if (game.status === 'finished' && history.length === 0) {
-          retryTimeoutId = setTimeout(async () => {
-            try {
-              const retriedHistory = await getRoundHistory(game.gameId)
-
-              if (!cancelled) {
-                dispatch(setRoundHistory(retriedHistory))
-              }
-            } catch {
-              // ignore retry failures and keep current UI state
-            }
-          }, 600)
-        }
+        scheduleFinishedRefresh(1)
       } catch {
         // ignore history loading failures and keep current UI state
+        scheduleFinishedRefresh(1)
       }
     }
 
@@ -259,8 +276,8 @@ function GamePage() {
     return () => {
       cancelled = true
 
-      if (retryTimeoutId) {
-        clearTimeout(retryTimeoutId)
+      for (const timeoutId of retryTimeoutIds) {
+        clearTimeout(timeoutId)
       }
     }
   }, [dispatch, game.gameId, game.status])

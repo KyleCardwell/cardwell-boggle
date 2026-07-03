@@ -5,18 +5,23 @@ import { createGame, getPlayersByGameId, joinGame } from '../supabase/gameApi'
 import { setPlayer } from '../store/playerSlice'
 import { setGame, setPlayers } from '../store/gameSlice'
 import { savePlayerSession } from '../utils/playerSession'
-
-const BOARD_SIZES = [3, 4, 5, 6, 7, 8, 9, 10]
-const DEFAULT_DURATION_SECONDS = 180
+import {
+  BOARD_SIZES,
+  DEFAULT_DURATION_SECONDS,
+  DURATION_OPTIONS,
+  formatDurationLabel,
+} from '../constants/gameSettings'
 
 function HomePage() {
   const dispatch = useDispatch()
   const navigate = useNavigate()
 
   const [newBoardSize, setNewBoardSize] = useState(4)
+  const [newDurationSeconds, setNewDurationSeconds] = useState(DEFAULT_DURATION_SECONDS)
   const [newDisplayName, setNewDisplayName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const [joinDisplayName, setJoinDisplayName] = useState('')
+  const [activeForm, setActiveForm] = useState('join')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -33,7 +38,7 @@ function HomePage() {
     setIsSubmitting(true)
 
     try {
-      const createdGame = await createGame(newBoardSize, DEFAULT_DURATION_SECONDS)
+      const createdGame = await createGame(newBoardSize, newDurationSeconds)
       const { game, player } = await joinGame(createdGame.game_code, displayName)
       const players = await getPlayersByGameId(game.id)
 
@@ -94,8 +99,39 @@ function HomePage() {
         <p className="mb-4 text-ui-danger">{errorMessage}</p>
       ) : null}
 
-      <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
-        <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+      <div className="mx-auto mb-4 flex w-full max-w-md rounded-lg border border-ui-border bg-ui-surface p-1">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveForm('join')
+            setErrorMessage('')
+          }}
+          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            activeForm === 'join'
+              ? 'bg-ui-surface-alt text-ui-text'
+              : 'text-ui-muted hover:text-ui-text'
+          }`}
+        >
+          Join Game
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setActiveForm('new')
+            setErrorMessage('')
+          }}
+          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            activeForm === 'new'
+              ? 'bg-ui-surface-alt text-ui-text'
+              : 'text-ui-muted hover:text-ui-text'
+          }`}
+        >
+          New Game
+        </button>
+      </div>
+
+      {activeForm === 'new' ? (
+        <section className="mx-auto max-w-md rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
           <h2 className="mt-0">New Game</h2>
           <form onSubmit={handleCreateGame} className="grid gap-3">
             <label htmlFor="new-board-size" className="text-sm font-medium text-ui-muted">
@@ -110,6 +146,22 @@ function HomePage() {
               {BOARD_SIZES.map((size) => (
                 <option key={size} value={size}>
                   {size} x {size}
+                </option>
+              ))}
+            </select>
+
+            <label htmlFor="new-round-time" className="text-sm font-medium text-ui-muted">
+              Round Time
+            </label>
+            <select
+              id="new-round-time"
+              value={newDurationSeconds}
+              onChange={(event) => setNewDurationSeconds(Number(event.target.value))}
+              className="rounded-md border border-ui-input-border bg-ui-input-bg px-3 py-2 text-ui-input-text"
+            >
+              {DURATION_OPTIONS.map((seconds) => (
+                <option key={seconds} value={seconds}>
+                  {formatDurationLabel(seconds)}
                 </option>
               ))}
             </select>
@@ -129,14 +181,14 @@ function HomePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-emerald-600 px-3 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Creating...' : 'Create & Join'}
             </button>
           </form>
         </section>
-
-        <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
+      ) : (
+        <section className="mx-auto max-w-md rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
           <h2 className="mt-0">Join Game</h2>
           <form onSubmit={handleJoinGame} className="grid gap-3">
             <label htmlFor="join-code" className="text-sm font-medium text-ui-muted">
@@ -166,13 +218,13 @@ function HomePage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-blue-600 px-3 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSubmitting ? 'Joining...' : 'Join Game'}
             </button>
           </form>
         </section>
-      </div>
+      )}
     </main>
   )
 }

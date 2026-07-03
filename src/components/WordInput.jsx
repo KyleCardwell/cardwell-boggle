@@ -12,6 +12,7 @@ function WordInput({
 }) {
   const [value, setValue] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [isDuplicateWarning, setIsDuplicateWarning] = useState(false)
   const minimumWordLength = getMinimumWordLength(boardSize)
 
   const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
@@ -28,21 +29,25 @@ function WordInput({
     setValue('')
 
     if (normalizedWord.length < minimumWordLength) {
+      setIsDuplicateWarning(false)
       setErrorMessage(`Word must be at least ${minimumWordLength} letters.`)
       return
     }
 
     if (!dictionary?.has(normalizedWord)) {
+      setIsDuplicateWarning(false)
       setErrorMessage('Word is not in dictionary.')
       return
     }
 
     if (wordsSet.has(normalizedWord)) {
+      setIsDuplicateWarning(true)
       setErrorMessage('You already found that word.')
       return
     }
 
     if (!canConstructWord(board, boardSize, normalizedWord)) {
+      setIsDuplicateWarning(false)
       setErrorMessage('Word is not constructable from this board.')
       return
     }
@@ -50,8 +55,10 @@ function WordInput({
     try {
       await onSubmitWord(normalizedWord)
       setValue('')
+      setIsDuplicateWarning(false)
       setErrorMessage('')
     } catch (error) {
+      setIsDuplicateWarning(false)
       setErrorMessage(error.message || 'Unable to submit word.')
     }
   }
@@ -79,7 +86,11 @@ function WordInput({
         </button>
       </form>
 
-      {errorMessage ? <p className="mt-2 text-ui-danger">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p className={`mt-2 ${isDuplicateWarning ? 'text-amber-400' : 'text-ui-danger'}`}>
+          {errorMessage}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {wordsFound.map((word) => (
