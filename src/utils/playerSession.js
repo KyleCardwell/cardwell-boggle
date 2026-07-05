@@ -18,6 +18,8 @@ function normalizeGameCode(gameCode) {
 
 function normalizePlayerSession(player) {
   const playerId = String(player?.playerId ?? player?.id ?? '').trim()
+  const parsedLastSeenAt = Number(player?.lastSeenAt ?? player?.last_seen_at ?? 0)
+  const lastSeenAt = Number.isFinite(parsedLastSeenAt) && parsedLastSeenAt > 0 ? parsedLastSeenAt : null
 
   if (!playerId) {
     return null
@@ -26,6 +28,7 @@ function normalizePlayerSession(player) {
   return {
     playerId,
     displayName: String(player?.displayName ?? player?.display_name ?? '').trim(),
+    lastSeenAt,
   }
 }
 
@@ -86,8 +89,46 @@ export function savePlayerSession(gameCode, player) {
   const sessions = readSessions()
   writeSessions({
     ...sessions,
-    [normalizedGameCode]: normalizedPlayerSession,
+    [normalizedGameCode]: {
+      ...normalizedPlayerSession,
+      lastSeenAt: Date.now(),
+    },
   })
+}
+
+export function getMostRecentStoredPlayerSession() {
+  const sessions = readSessions()
+  const normalizedSessions = Object.entries(sessions)
+    .map(([gameCode, session]) => {
+      const normalizedSession = normalizePlayerSession(session)
+
+      if (!normalizedSession) {
+        return null
+      }
+
+      return {
+        gameCode: normalizeGameCode(gameCode),
+        ...normalizedSession,
+      }
+    })
+    .filter((session) => Boolean(session?.gameCode))
+
+  if (!normalizedSessions.length) {
+    return null
+  }
+
+  normalizedSessions.sort((a, b) => {
+    const aLastSeenAt = a.lastSeenAt ?? 0
+    const bLastSeenAt = b.lastSeenAt ?? 0
+
+    if (aLastSeenAt !== bLastSeenAt) {
+      return bLastSeenAt - aLastSeenAt
+    }
+
+    return a.gameCode.localeCompare(b.gameCode)
+  })
+
+  return normalizedSessions[0]
 }
 
 export function clearStoredPlayerSession(gameCode) {

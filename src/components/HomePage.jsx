@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { createGame, getPlayersByGameId, joinGame } from '../supabase/gameApi'
 import { setPlayer } from '../store/playerSlice'
 import { setGame, setPlayers } from '../store/gameSlice'
-import { savePlayerSession } from '../utils/playerSession'
+import { getMostRecentStoredPlayerSession, savePlayerSession } from '../utils/playerSession'
 import {
   BOARD_SIZES,
   DEFAULT_DURATION_SECONDS,
@@ -24,6 +24,16 @@ function HomePage() {
   const [activeForm, setActiveForm] = useState('join')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [recentSession] = useState(() => getMostRecentStoredPlayerSession())
+
+  const handleRejoinExistingGame = () => {
+    if (!recentSession?.gameCode) {
+      return
+    }
+
+    setErrorMessage('')
+    navigate(`/game/${recentSession.gameCode}`)
+  }
 
   const handleCreateGame = async (event) => {
     event.preventDefault()
@@ -222,6 +232,22 @@ function HomePage() {
             >
               {isSubmitting ? 'Joining...' : 'Join Game'}
             </button>
+
+            {recentSession?.gameCode ? (
+              <div className="pt-2 text-center border-t border-ui-border mt-3 pt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ui-muted">
+                  OR Rejoin existing game
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRejoinExistingGame}
+                  disabled={isSubmitting}
+                  className="w-full rounded-md border border-ui-input-border px-3 py-2 text-sm font-medium text-ui-text transition-colors hover:bg-ui-surface-alt disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Rejoin {recentSession.gameCode}
+                </button>
+              </div>
+            ) : null}
           </form>
         </section>
       )}
