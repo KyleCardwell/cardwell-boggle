@@ -78,6 +78,7 @@ function GamePage() {
   const [highlightedRoundKey, setHighlightedRoundKey] = useState(null)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [inputMode, setInputMode] = useState('type')
+  const [boardRotationDegrees, setBoardRotationDegrees] = useState(0)
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
@@ -135,6 +136,10 @@ function GamePage() {
 
     return findAllWordsWithPaths(game.board, game.boardSize, dictionary)
   }, [dictionary, game.board, game.boardSize, game.status])
+
+  const handleRotateBoardClockwise = () => {
+    setBoardRotationDegrees((previousRotationDegrees) => previousRotationDegrees + 90)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -310,6 +315,10 @@ function GamePage() {
           const isCurrentPlayerHost =
             Boolean(playerIdRef.current) && playerIdRef.current === hostIdRef.current
 
+          if (isNewRound) {
+            setBoardRotationDegrees(0)
+          }
+
           if (isNewRound && playerIdRef.current && !isCurrentPlayerHost) {
             dispatch(setPlayer({ id: playerIdRef.current, words_found: [], score: 0 }))
             dispatch(setScore(0))
@@ -476,6 +485,7 @@ function GamePage() {
         durationSeconds: updatedGame.duration_seconds,
       }),
     )
+    setBoardRotationDegrees(0)
   }
 
   const handleSaveSettings = async ({ boardSize, durationSeconds }) => {
@@ -642,6 +652,7 @@ function GamePage() {
       dispatch(setAllWords([]))
       dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
       dispatch(setScore(0))
+      setBoardRotationDegrees(0)
       setIsPauseModalOpen(false)
       pauseSourceStatusRef.current = null
     })
@@ -782,6 +793,16 @@ function GamePage() {
         <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {showBoard ? (
+            <button
+              type="button"
+              onClick={handleRotateBoardClockwise}
+              className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover"
+            >
+              Rotate Board
+            </button>
+          ) : null}
+
           {canPauseGame ? (
             <button
               type="button"
@@ -893,6 +914,7 @@ function GamePage() {
                 dictionary={dictionary}
                 boardSize={game.boardSize}
                 wordsFound={player.wordsFound}
+                rotationDegrees={boardRotationDegrees}
                 onSubmitWord={handleSubmitWord}
               />
             ) : (
@@ -907,6 +929,7 @@ function GamePage() {
                     ? animatedHighlightedPath
                     : []
                 }
+                rotationDegrees={boardRotationDegrees}
               />
             )}
           </section>

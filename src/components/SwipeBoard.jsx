@@ -93,6 +93,7 @@ function SwipeBoard({
   inputMode = 'swipe',
   highlightedPath = [],
   isCompact = false,
+  rotationDegrees = 0,
   dictionary,
   boardSize,
   wordsFound = [],
@@ -192,7 +193,7 @@ function SwipeBoard({
 
   useEffect(() => {
     updateTracePoints(tracePath)
-  }, [tracePath, board, size, isCompact])
+  }, [tracePath, board, size, isCompact, rotationDegrees])
 
   useEffect(() => {
     if (tracePath.length === 0) {
@@ -510,6 +511,7 @@ function SwipeBoard({
           highlightedPath={activeHighlightedPath}
           isCompact={isCompact}
           gridGapOverride={swipeGridGap}
+          rotationDegrees={rotationDegrees}
         />
 
         <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">

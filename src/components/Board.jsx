@@ -6,6 +6,7 @@ function Board({
   highlightedPath = [],
   isCompact = false,
   gridGapOverride,
+  rotationDegrees = 0,
 }) {
   if (!Array.isArray(board) || !Number.isInteger(size) || size <= 0) {
     return null
@@ -16,6 +17,7 @@ function Board({
   const highlightedTileIndexes = new Set(Array.isArray(highlightedPath) ? highlightedPath : [])
   const tileMinSize = isCompact ? '1.15rem' : '2.25rem'
   const gridGap = gridGapOverride ?? (isCompact ? '0.2rem' : '0.45rem')
+  const rotateCommand = 'transform 750ms ease-in-out'
   const tileFontSize =
     size <= 3
       ? 'clamp(1.35rem, 6.2vw, 2.7rem)'
@@ -36,6 +38,9 @@ function Board({
         style={{
           gap: gridGap,
           gridTemplateColumns: `repeat(${size}, minmax(${tileMinSize}, 1fr))`,
+          transform: `rotate(${rotationDegrees}deg)`,
+          transformOrigin: 'center',
+          transition: rotateCommand,
         }}
       >
         {board.map((tile, index) => {
@@ -64,6 +69,10 @@ function Board({
                     ? 'blur-[15px] opacity-[0.45] transition-[filter,opacity] duration-200 ease-in-out'
                     : 'transition-[filter,opacity] duration-200 ease-in-out'
                 }
+                style={{
+                  transform: `rotate(${-rotationDegrees}deg)`,
+                  transition: rotateCommand,
+                }}
               >
                 {normalizedTile}
               </span>
