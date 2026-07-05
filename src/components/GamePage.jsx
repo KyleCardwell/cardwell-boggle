@@ -793,6 +793,16 @@ function GamePage() {
         <h1 className="m-0">Game {game.gameCode || normalizedGameCode}</h1>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
+                   {showLobby || showResults ? (
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="rounded-md border border-ui-border bg-ui-surface px-3 py-2 font-medium text-ui-text transition-colors hover:bg-ui-surface-hover"
+            >
+              Home
+            </button>
+          ) : null}
+
           {showBoard ? (
             <button
               type="button"
