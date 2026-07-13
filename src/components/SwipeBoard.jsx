@@ -85,6 +85,229 @@ function getTracePoints(containerElement, path) {
     .filter(Boolean)
 }
 
+const SWIPE_INNER_ZONE_RATIO = 0.68
+const SWIPE_MIN_DIRECTION_DISTANCE = 4
+const SWIPE_DIRECTION_REJECTION_COSINE = -0.35
+
+function getTouchPoint(event) {
+  const touch = event.touches?.[0] ?? event.changedTouches?.[0]
+
+  if (!touch) {
+    return null
+  }
+
+  return {
+    x: touch.clientX,
+    y: touch.clientY,
+  }
+}
+
+function isPointInsideRect(point, rect) {
+  if (!point || !rect) {
+    return false
+  }
+
+  return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+}
+
+function getDistanceFromPointToSegment(point, segmentStart, segmentEnd) {
+  if (!point || !segmentStart || !segmentEnd) {
+    return Number.POSITIVE_INFINITY
+  }
+
+  const segmentDx = segmentEnd.x - segmentStart.x
+  const segmentDy = segmentEnd.y - segmentStart.y
+  const segmentLengthSquared = segmentDx * segmentDx + segmentDy * segmentDy
+
+  if (segmentLengthSquared === 0) {
+    return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y)
+  }
+
+  const projection =
+    ((point.x - segmentStart.x) * segmentDx + (point.y - segmentStart.y) * segmentDy) /
+    segmentLengthSquared
+  const clampedProjection = Math.min(1, Math.max(0, projection))
+  const projectedX = segmentStart.x + clampedProjection * segmentDx
+  const projectedY = segmentStart.y + clampedProjection * segmentDy
+
+  return Math.hypot(point.x - projectedX, point.y - projectedY)
+}
+
+function getTileGeometry(containerElement) {
+  if (!containerElement) {
+    return new Map()
+  }
+
+  const tileElements = containerElement.querySelectorAll('[data-tile-index]')
+  const geometry = new Map()
+
+  tileElements.forEach((tileElement) => {
+    const index = Number.parseInt(tileElement.getAttribute('data-tile-index') ?? '', 10)
+
+    if (!Number.isInteger(index)) {
+      return
+    }
+
+    const rect = tileElement.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const innerWidth = rect.width * SWIPE_INNER_ZONE_RATIO
+    const innerHeight = rect.height * SWIPE_INNER_ZONE_RATIO
+
+    geometry.set(index, {
+      rect: {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+      },
+      innerRect: {
+        left: centerX - innerWidth / 2,
+        right: centerX + innerWidth / 2,
+        top: centerY - innerHeight / 2,
+        bottom: centerY + innerHeight / 2,
+      },
+      centerX,
+      centerY,
+      width: rect.width,
+      height: rect.height,
+      innerRadius: Math.min(innerWidth, innerHeight) / 2,
+    })
+  })
+
+  return geometry
+}
+
+function getTileIndexFromPoint(point, tileGeometry, requireInnerZone = false) {
+  if (!point || !tileGeometry || tileGeometry.size === 0) {
+    return null
+  }
+
+  let bestIndex = null
+  let bestDistance = Number.POSITIVE_INFINITY
+
+  for (const [index, tileData] of tileGeometry.entries()) {
+    const targetRect = requireInnerZone ? tileData.innerRect : tileData.rect
+
+    if (!isPointInsideRect(point, targetRect)) {
+      continue
+    }
+
+    const distanceToCenter = Math.hypot(point.x - tileData.centerX, point.y - tileData.centerY)
+
+    if (distanceToCenter < bestDistance) {
+      bestDistance = distanceToCenter
+      bestIndex = index
+    }
+  }
+
+  return bestIndex
+}
+
+function didSegmentTouchInnerZone(segmentStart, segmentEnd, tileData) {
+  if (!segmentStart || !segmentEnd || !tileData) {
+    return false
+  }
+
+  if (isPointInsideRect(segmentStart, tileData.innerRect) || isPointInsideRect(segmentEnd, tileData.innerRect)) {
+    return true
+  }
+
+  const distanceToSegment = getDistanceFromPointToSegment(
+    { x: tileData.centerX, y: tileData.centerY },
+    segmentStart,
+    segmentEnd,
+  )
+
+  return distanceToSegment <= tileData.innerRadius
+}
+
+function getSwipeCandidateTileIndex({ path, size, currentPoint, previousPoint, tileGeometry }) {
+  if (!Array.isArray(path) || path.length === 0 || !currentPoint || !tileGeometry || tileGeometry.size === 0) {
+    return null
+  }
+
+  const lastIndex = path[path.length - 1]
+  const previousIndex = path.length > 1 ? path[path.length - 2] : null
+  const lastTile = tileGeometry.get(lastIndex)
+
+  if (!lastTile) {
+    return null
+  }
+
+  const swipeDx = previousPoint ? currentPoint.x - previousPoint.x : 0
+  const swipeDy = previousPoint ? currentPoint.y - previousPoint.y : 0
+  const swipeMagnitude = Math.hypot(swipeDx, swipeDy)
+
+  let bestCandidateIndex = null
+  let bestCandidateScore = Number.NEGATIVE_INFINITY
+
+  for (const [candidateIndex, candidateTile] of tileGeometry.entries()) {
+    if (candidateIndex === lastIndex) {
+      continue
+    }
+
+    if (!areAdjacent(lastIndex, candidateIndex, size)) {
+      continue
+    }
+
+    if (path.includes(candidateIndex) && candidateIndex !== previousIndex) {
+      continue
+    }
+
+    const isInsideInnerZone = isPointInsideRect(currentPoint, candidateTile.innerRect)
+    const segmentTouchesInnerZone = didSegmentTouchInnerZone(previousPoint, currentPoint, candidateTile)
+
+    if (!isInsideInnerZone && !segmentTouchesInnerZone) {
+      continue
+    }
+
+    let score = 0
+
+    if (isInsideInnerZone) {
+      score += 3
+    }
+
+    if (segmentTouchesInnerZone) {
+      score += 2
+    }
+
+    const distanceToCenter = Math.hypot(currentPoint.x - candidateTile.centerX, currentPoint.y - candidateTile.centerY)
+    score -= distanceToCenter / Math.max(candidateTile.width, candidateTile.height)
+
+    if (swipeMagnitude >= SWIPE_MIN_DIRECTION_DISTANCE) {
+      const candidateDx = candidateTile.centerX - lastTile.centerX
+      const candidateDy = candidateTile.centerY - lastTile.centerY
+      const candidateMagnitude = Math.hypot(candidateDx, candidateDy)
+
+      if (candidateMagnitude > 0) {
+        const cosine = (swipeDx * candidateDx + swipeDy * candidateDy) / (swipeMagnitude * candidateMagnitude)
+
+        if (cosine < SWIPE_DIRECTION_REJECTION_COSINE && !isInsideInnerZone) {
+          continue
+        }
+
+        score += Math.max(cosine, -0.2) * 1.25
+      }
+    }
+
+    if (candidateIndex === previousIndex) {
+      score += 0.15
+    }
+
+    if (score > bestCandidateScore) {
+      bestCandidateScore = score
+      bestCandidateIndex = candidateIndex
+    }
+  }
+
+  if (bestCandidateScore < 0.5) {
+    return null
+  }
+
+  return bestCandidateIndex
+}
+
 function SwipeBoard({
   board,
   size,
@@ -110,6 +333,8 @@ function SwipeBoard({
   const feedbackTimeoutRef = useRef(null)
   const activeTraceMethodRef = useRef(null)
   const suppressTileClickUntilRef = useRef(0)
+  const tileGeometryRef = useRef(new Map())
+  const lastTouchPointRef = useRef(null)
 
   const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
   const activeBoardSize = Number.isInteger(boardSize) ? boardSize : size
@@ -164,6 +389,7 @@ function SwipeBoard({
 
   const clearTracePath = () => {
     isTracingRef.current = false
+    lastTouchPointRef.current = null
     setActiveTraceMethodState(null)
     setTracePathState([])
     setTracePoints([])
@@ -191,9 +417,17 @@ function SwipeBoard({
     setTracePoints(getTracePoints(boardWrapperRef.current, path))
   }
 
+  const refreshTileGeometry = useCallback(() => {
+    tileGeometryRef.current = getTileGeometry(boardWrapperRef.current)
+  }, [])
+
   useEffect(() => {
     updateTracePoints(tracePath)
   }, [tracePath, board, size, isCompact, rotationDegrees])
+
+  useEffect(() => {
+    refreshTileGeometry()
+  }, [board, size, isCompact, rotationDegrees, refreshTileGeometry])
 
   useEffect(() => {
     if (tracePath.length === 0) {
@@ -201,6 +435,7 @@ function SwipeBoard({
     }
 
     const handleViewportResize = () => {
+      refreshTileGeometry()
       updateTracePoints(tracePathRef.current)
     }
 
@@ -219,7 +454,7 @@ function SwipeBoard({
         window.visualViewport.removeEventListener('resize', handleViewportResize)
       }
     }
-  }, [tracePath.length])
+  }, [tracePath.length, refreshTileGeometry])
 
   useEffect(
     () => () => {
@@ -237,7 +472,20 @@ function SwipeBoard({
       return
     }
 
-    const tileIndex = getTileIndexFromElement(event.target)
+    const touchPoint = getTouchPoint(event)
+
+    if (!touchPoint) {
+      return
+    }
+
+    lastTouchPointRef.current = touchPoint
+    refreshTileGeometry()
+
+    let tileIndex = getTileIndexFromElement(event.target)
+
+    if (tileIndex === null) {
+      tileIndex = getTileIndexFromPoint(touchPoint, tileGeometryRef.current)
+    }
 
     if (tileIndex === null) {
       return
@@ -257,20 +505,32 @@ function SwipeBoard({
       event.preventDefault()
     }
 
-    const touch = event.touches?.[0]
+    const touchPoint = getTouchPoint(event)
 
-    if (!touch) {
+    if (!touchPoint) {
       return
     }
 
-    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY)
-    const tileIndex = getTileIndexFromElement(targetElement)
+    const previousTouchPoint = lastTouchPointRef.current
+    lastTouchPointRef.current = touchPoint
 
-    if (tileIndex === null) {
+    if (!previousTouchPoint) {
       return
     }
 
     setTracePathState((previousPath) => {
+      const tileIndex = getSwipeCandidateTileIndex({
+        path: previousPath,
+        size,
+        currentPoint: touchPoint,
+        previousPoint: previousTouchPoint,
+        tileGeometry: tileGeometryRef.current,
+      })
+
+      if (tileIndex === null) {
+        return previousPath
+      }
+
       const nextPath = appendTileToPath(previousPath, tileIndex, size)
 
       if (nextPath.length > 1 && activeTraceMethodRef.current !== 'swipe') {
@@ -449,6 +709,7 @@ function SwipeBoard({
     }
 
     isTracingRef.current = false
+    lastTouchPointRef.current = null
     clearTracePath()
   }
 
