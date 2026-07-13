@@ -1,5 +1,6 @@
 import { generateBoard } from '../utils/boardGenerator';
 import { scoreWord } from '../utils/scoring';
+import { BOARD_SIZES } from '../constants/gameSettings';
 import { getMinimumWordLength } from '../utils/wordValidation';
 import { supabase } from './client';
 
@@ -7,6 +8,10 @@ const GAME_CODE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const GAME_CODE_LENGTH = 4;
 const MAX_CREATE_GAME_ATTEMPTS = 10;
 const COUNTDOWN_LEAD_MS = 10_000;
+
+function isSupportedBoardSize(boardSize) {
+  return Number.isInteger(boardSize) && BOARD_SIZES.includes(boardSize);
+}
 
 function normalizeWords(words, minimumWordLength) {
   if (!Array.isArray(words)) {
@@ -129,8 +134,8 @@ export async function createGame(boardSize, durationSeconds) {
   const normalizedBoardSize = Number(boardSize);
   const normalizedDurationSeconds = Number(durationSeconds);
 
-  if (!Number.isInteger(normalizedBoardSize) || normalizedBoardSize <= 0) {
-    throw new Error('Board size must be a positive integer.');
+  if (!isSupportedBoardSize(normalizedBoardSize)) {
+    throw new Error(`Board size must be one of: ${BOARD_SIZES.join(', ')}.`);
   }
 
   if (!Number.isInteger(normalizedDurationSeconds) || normalizedDurationSeconds <= 0) {
@@ -240,8 +245,8 @@ export async function updateWaitingGameSettings(gameId, { boardSize, durationSec
     throw new Error('Game ID is required.');
   }
 
-  if (!Number.isInteger(normalizedBoardSize) || normalizedBoardSize <= 0) {
-    throw new Error('Board size must be a positive integer.');
+  if (!isSupportedBoardSize(normalizedBoardSize)) {
+    throw new Error(`Board size must be one of: ${BOARD_SIZES.join(', ')}.`);
   }
 
   if (!Number.isInteger(normalizedDurationSeconds) || normalizedDurationSeconds <= 0) {

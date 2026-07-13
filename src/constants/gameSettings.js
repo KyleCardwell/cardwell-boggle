@@ -1,4 +1,4 @@
-export const BOARD_SIZES = [3, 4, 5, 6, 7, 8, 9, 10]
+export const BOARD_SIZES = [4, 5, 6, 7, 8]
 export const DURATION_OPTIONS = [60, 90, 120, 150, 180, 210, 240, 270, 300]
 export const DEFAULT_DURATION_SECONDS = 180
 

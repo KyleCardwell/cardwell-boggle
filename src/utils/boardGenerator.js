@@ -27,6 +27,154 @@ const BASE_TILE_WEIGHTS = [
   ['Z', 1],
 ];
 
+const VOWELS = new Set(['A', 'E', 'I', 'O', 'U']);
+const DEFAULT_GENERATION_CONSTRAINTS = Object.freeze({
+  maxGenerationAttempts: 30,
+  minimumVowelRatio: 0.3,
+  maximumVowelRatio: 0.5,
+  maxAdjacentSameTile: 2,
+});
+
+function normalizeTile(tile) {
+  return String(tile ?? '').trim().toUpperCase();
+}
+
+function isVowelTile(tile) {
+  const normalizedTile = normalizeTile(tile);
+
+  for (const character of normalizedTile) {
+    if (VOWELS.has(character)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizeGenerationConstraints(options = {}) {
+  const normalizedAttempts = Number(options.maxGenerationAttempts);
+  const normalizedMinimumVowelRatio = Number(options.minimumVowelRatio);
+  const normalizedMaximumVowelRatio = Number(options.maximumVowelRatio);
+  const normalizedMaxAdjacentSameTile = Number(options.maxAdjacentSameTile);
+
+  let minimumVowelRatio = Number.isFinite(normalizedMinimumVowelRatio)
+    ? normalizedMinimumVowelRatio
+    : DEFAULT_GENERATION_CONSTRAINTS.minimumVowelRatio;
+  let maximumVowelRatio = Number.isFinite(normalizedMaximumVowelRatio)
+    ? normalizedMaximumVowelRatio
+    : DEFAULT_GENERATION_CONSTRAINTS.maximumVowelRatio;
+
+  minimumVowelRatio = Math.min(0.9, Math.max(0.05, minimumVowelRatio));
+  maximumVowelRatio = Math.min(0.9, Math.max(0.05, maximumVowelRatio));
+
+  if (minimumVowelRatio > maximumVowelRatio) {
+    minimumVowelRatio = DEFAULT_GENERATION_CONSTRAINTS.minimumVowelRatio;
+    maximumVowelRatio = DEFAULT_GENERATION_CONSTRAINTS.maximumVowelRatio;
+  }
+
+  return {
+    maxGenerationAttempts: Number.isInteger(normalizedAttempts) && normalizedAttempts > 0
+      ? normalizedAttempts
+      : DEFAULT_GENERATION_CONSTRAINTS.maxGenerationAttempts,
+    minimumVowelRatio,
+    maximumVowelRatio,
+    maxAdjacentSameTile: Number.isInteger(normalizedMaxAdjacentSameTile)
+      ? Math.max(0, normalizedMaxAdjacentSameTile)
+      : DEFAULT_GENERATION_CONSTRAINTS.maxAdjacentSameTile,
+  };
+}
+
+function hasBalancedVowelRatio(board, minimumVowelRatio, maximumVowelRatio) {
+  const vowelCount = board.reduce((count, tile) => count + (isVowelTile(tile) ? 1 : 0), 0);
+  const vowelRatio = vowelCount / board.length;
+
+  return vowelRatio >= minimumVowelRatio && vowelRatio <= maximumVowelRatio;
+}
+
+function hasVowelCoverageByRowsAndColumns(board, size) {
+  for (let row = 0; row < size; row += 1) {
+    let rowHasVowel = false;
+
+    for (let column = 0; column < size; column += 1) {
+      if (isVowelTile(board[(row * size) + column])) {
+        rowHasVowel = true;
+        break;
+      }
+    }
+
+    if (!rowHasVowel) {
+      return false;
+    }
+  }
+
+  for (let column = 0; column < size; column += 1) {
+    let columnHasVowel = false;
+
+    for (let row = 0; row < size; row += 1) {
+      if (isVowelTile(board[(row * size) + column])) {
+        columnHasVowel = true;
+        break;
+      }
+    }
+
+    if (!columnHasVowel) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function hasExcessiveSameTileAdjacency(board, size, maxAdjacentSameTile) {
+  for (let row = 0; row < size; row += 1) {
+    for (let column = 0; column < size; column += 1) {
+      const tileIndex = (row * size) + column;
+      const currentTile = normalizeTile(board[tileIndex]);
+      let sameTileNeighbors = 0;
+
+      for (let rowOffset = -1; rowOffset <= 1; rowOffset += 1) {
+        for (let columnOffset = -1; columnOffset <= 1; columnOffset += 1) {
+          if (rowOffset === 0 && columnOffset === 0) {
+            continue;
+          }
+
+          const neighborRow = row + rowOffset;
+          const neighborColumn = column + columnOffset;
+
+          if (
+            neighborRow < 0 ||
+            neighborRow >= size ||
+            neighborColumn < 0 ||
+            neighborColumn >= size
+          ) {
+            continue;
+          }
+
+          const neighborTile = normalizeTile(board[(neighborRow * size) + neighborColumn]);
+
+          if (neighborTile === currentTile) {
+            sameTileNeighbors += 1;
+
+            if (sameTileNeighbors > maxAdjacentSameTile) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function hasAcceptableDistribution(board, size, constraints) {
+  return (
+    hasBalancedVowelRatio(board, constraints.minimumVowelRatio, constraints.maximumVowelRatio) &&
+    hasVowelCoverageByRowsAndColumns(board, size) &&
+    !hasExcessiveSameTileAdjacency(board, size, constraints.maxAdjacentSameTile)
+  );
+}
+
 function buildTileWeights(options = {}) {
   const { useQu = true, useTh = false, useIn = false } = options;
 
@@ -131,6 +279,15 @@ function fisherYatesShuffle(array) {
   return array;
 }
 
+function rollBoardFromDicePool(dicePool) {
+  fisherYatesShuffle(dicePool);
+
+  return dicePool.map((die) => {
+    const faceIndex = Math.floor(Math.random() * 6);
+    return die[faceIndex];
+  });
+}
+
 export function generateBoard(size, options = {}) {
   const normalizedSize = Number(size);
 
@@ -141,13 +298,21 @@ export function generateBoard(size, options = {}) {
   const totalTiles = normalizedSize * normalizedSize;
   const tileWeights = buildTileWeights(options);
   const dicePool = buildDicePool(totalTiles, tileWeights);
+  const constraints = normalizeGenerationConstraints(options);
+  let fallbackBoard = rollBoardFromDicePool(dicePool);
 
-  fisherYatesShuffle(dicePool);
+  if (hasAcceptableDistribution(fallbackBoard, normalizedSize, constraints)) {
+    return fallbackBoard;
+  }
 
-  const board = dicePool.map((die) => {
-    const faceIndex = Math.floor(Math.random() * 6);
-    return die[faceIndex];
-  });
+  for (let attempt = 1; attempt < constraints.maxGenerationAttempts; attempt += 1) {
+    const candidateBoard = rollBoardFromDicePool(dicePool);
+    fallbackBoard = candidateBoard;
 
-  return board;
+    if (hasAcceptableDistribution(candidateBoard, normalizedSize, constraints)) {
+      return candidateBoard;
+    }
+  }
+
+  return fallbackBoard;
 }
