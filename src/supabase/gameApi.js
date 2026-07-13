@@ -1,4 +1,5 @@
-import { generateBoard } from '../utils/boardGenerator';
+import { generateBoard, generatePlayableBoard } from '../utils/boardGenerator';
+import { loadDictionary } from '../utils/dictionary';
 import { scoreWord } from '../utils/scoring';
 import { BOARD_SIZES } from '../constants/gameSettings';
 import { getMinimumWordLength } from '../utils/wordValidation';
@@ -74,6 +75,15 @@ function generateGameCode() {
   return code;
 }
 
+async function generateFreshBoard(boardSize) {
+  try {
+    const dictionary = await loadDictionary();
+    return generatePlayableBoard(boardSize, dictionary, { candidateBoardCount: 24 });
+  } catch {
+    return generateBoard(boardSize);
+  }
+}
+
 function parseSingleResult(data, error, contextMessage) {
   if (error) {
     throw new Error(`${contextMessage}: ${error.message}`);
@@ -142,7 +152,7 @@ export async function createGame(boardSize, durationSeconds) {
     throw new Error('Duration must be a positive integer (seconds).');
   }
 
-  const board = generateBoard(normalizedBoardSize);
+  const board = await generateFreshBoard(normalizedBoardSize);
 
   for (let attempt = 0; attempt < MAX_CREATE_GAME_ATTEMPTS; attempt += 1) {
     const gameCode = generateGameCode();
@@ -253,7 +263,7 @@ export async function updateWaitingGameSettings(gameId, { boardSize, durationSec
     throw new Error('Duration must be a positive integer (seconds).');
   }
 
-  const board = generateBoard(normalizedBoardSize);
+  const board = await generateFreshBoard(normalizedBoardSize);
 
   const updateResult = await supabase
     .from('boggle_games')
@@ -380,7 +390,7 @@ export async function restartGame(gameId) {
     throw new Error('Unable to restart game: invalid board size.');
   }
 
-  const board = generateBoard(boardSize);
+  const board = await generateFreshBoard(boardSize);
 
   const playersResetResult = await supabase
     .from('boggle_players')
@@ -433,7 +443,7 @@ export async function resetGameToWaiting(gameId) {
     throw new Error('Unable to reset game: invalid board size.');
   }
 
-  const board = generateBoard(boardSize);
+  const board = await generateFreshBoard(boardSize);
 
   const playersResetResult = await supabase
     .from('boggle_players')
