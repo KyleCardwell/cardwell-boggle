@@ -54,18 +54,40 @@ function getSharedWordSet(players, minimumWordLength) {
   )
 }
 
+function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
+  const firstTime = new Date(firstStartedAt).getTime()
+  const secondTime = new Date(secondStartedAt).getTime()
+
+  return Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime === secondTime
+}
+
+function getWordsForRound(player, currentRoundStartedAt, minimumWordLength) {
+  const words = Array.isArray(player?.words_found) ? player.words_found : []
+
+  if (words.length > 0 && !isSameRoundStartedAt(player?.words_round_started_at, currentRoundStartedAt)) {
+    return []
+  }
+
+  return normalizeWords(words, minimumWordLength)
+}
+
 function Results({
   players,
   allWords,
   roundHistory = [],
   boardSize,
+  currentRoundStartedAt,
   onWordHover,
   onWordHoverEnd,
 }) {
   const minimumWordLength = getMinimumWordLength(boardSize)
   const filteredAllWords = normalizeWords(allWords, minimumWordLength)
   const groupedAllWords = groupWordsByLength(filteredAllWords)
-  const sharedWordSet = getSharedWordSet(players, minimumWordLength)
+  const playersForRound = players.map((player) => ({
+    ...player,
+    words_found: getWordsForRound(player, currentRoundStartedAt, minimumWordLength),
+  }))
+  const sharedWordSet = getSharedWordSet(playersForRound, minimumWordLength)
 
   return (
     <section className="grid gap-4">
@@ -74,7 +96,7 @@ function Results({
           <div className="rounded-xl border border-ui-border bg-ui-surface p-4 text-ui-text">
             <h2 className="mt-0">Results</h2>
             <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
-              {players.map((player) => {
+              {playersForRound.map((player) => {
                 const words = normalizeWords(player.words_found, minimumWordLength)
                 const score = words.reduce(
                   (total, word) => total + (sharedWordSet.has(word) ? 0 : scoreWord(word)),
@@ -85,7 +107,9 @@ function Results({
                   <article key={player.id} className="rounded-[10px] border border-ui-border bg-ui-surface-alt p-3">
                     <div className="flex items-center justify-between border-b border-ui-border pb-1">
                       <h3 className="mt-0">{player.display_name}</h3>
-                      <p className="mb-0">Score: {score}</p>
+                      <p className="mb-0 text-right">
+                        {words.length} Word{words.length === 1 ? '' : 's'} · Score: {score}
+                      </p>
                     </div>
                     <ul className="m-0 pl-5 grid grid-cols-3 gap-1">
                       {words.map((word, index) => (

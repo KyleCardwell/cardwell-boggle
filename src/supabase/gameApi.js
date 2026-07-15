@@ -9,6 +9,7 @@ const GAME_CODE_CHARACTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const GAME_CODE_LENGTH = 4;
 const MAX_CREATE_GAME_ATTEMPTS = 10;
 const COUNTDOWN_LEAD_MS = 10_000;
+const SUBMISSION_GRACE_SECONDS = 5;
 
 function isSupportedBoardSize(boardSize) {
   return Number.isInteger(boardSize) && BOARD_SIZES.includes(boardSize);
@@ -42,11 +43,30 @@ function getSharedWordSet(players, minimumWordLength) {
   );
 }
 
-function buildRoundPlayerSummaries(players, boardSize) {
-  const minimumWordLength = getMinimumWordLength(boardSize);
-  const sharedWordSet = getSharedWordSet(players, minimumWordLength);
+function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
+  const firstTime = new Date(firstStartedAt).getTime();
+  const secondTime = new Date(secondStartedAt).getTime();
 
-  return (Array.isArray(players) ? players : [])
+  return Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime === secondTime;
+}
+
+function getPlayerWordsForRound(player, roundStartedAt, minimumWordLength) {
+  if (!isSameRoundStartedAt(player?.words_round_started_at, roundStartedAt)) {
+    return [];
+  }
+
+  return normalizeWords(player?.words_found, minimumWordLength);
+}
+
+function buildRoundPlayerSummaries(players, boardSize, roundStartedAt) {
+  const minimumWordLength = getMinimumWordLength(boardSize);
+  const playersForRound = (Array.isArray(players) ? players : []).map((player) => ({
+    ...player,
+    words_found: getPlayerWordsForRound(player, roundStartedAt, minimumWordLength),
+  }));
+  const sharedWordSet = getSharedWordSet(playersForRound, minimumWordLength);
+
+  return playersForRound
     .map((player) => {
       const validWords = normalizeWords(player?.words_found, minimumWordLength);
       const score = validWords.reduce(
@@ -232,18 +252,12 @@ export async function startGame(gameId) {
   }
 
   const countdownStartAt = new Date(Date.now() + COUNTDOWN_LEAD_MS).toISOString();
+  const rpcResult = await supabase.rpc('start_boggle_round', {
+    p_game_id: normalizedGameId,
+    p_started_at: countdownStartAt,
+  });
 
-  const updateResult = await supabase
-    .from('boggle_games')
-    .update({
-      started_at: countdownStartAt,
-      status: 'countdown',
-    })
-    .eq('id', normalizedGameId)
-    .select('*')
-    .single();
-
-  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to start game');
+  return parseSingleResult(rpcResult.data, rpcResult.error, 'Failed to start game');
 }
 
 export async function updateWaitingGameSettings(gameId, { boardSize, durationSeconds }) {
@@ -392,32 +406,14 @@ export async function restartGame(gameId) {
 
   const board = await generateFreshBoard(boardSize);
 
-  const playersResetResult = await supabase
-    .from('boggle_players')
-    .update({
-      words_found: [],
-      score: 0,
-    })
-    .eq('game_id', normalizedGameId);
-
-  if (playersResetResult.error) {
-    throw new Error(`Failed to reset player words: ${playersResetResult.error.message}`);
-  }
-
   const countdownStartAt = new Date(Date.now() + COUNTDOWN_LEAD_MS).toISOString();
+  const rpcResult = await supabase.rpc('start_boggle_round', {
+    p_game_id: normalizedGameId,
+    p_board: board,
+    p_started_at: countdownStartAt,
+  });
 
-  const updateResult = await supabase
-    .from('boggle_games')
-    .update({
-      board,
-      started_at: countdownStartAt,
-      status: 'countdown',
-    })
-    .eq('id', normalizedGameId)
-    .select('*')
-    .single();
-
-  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to restart game');
+  return parseSingleResult(rpcResult.data, rpcResult.error, 'Failed to restart game');
 }
 
 export async function resetGameToWaiting(gameId) {
@@ -450,6 +446,8 @@ export async function resetGameToWaiting(gameId) {
     .update({
       words_found: [],
       score: 0,
+      word_count: 0,
+      words_round_started_at: null,
     })
     .eq('game_id', normalizedGameId);
 
@@ -471,11 +469,20 @@ export async function resetGameToWaiting(gameId) {
   return parseSingleResult(updateResult.data, updateResult.error, 'Failed to reset game to waiting state');
 }
 
-export async function submitWords(playerId, words) {
+export async function submitWords(playerId, gameId, roundStartedAt, words) {
   const normalizedPlayerId = String(playerId ?? '').trim();
+  const normalizedGameId = String(gameId ?? '').trim();
 
   if (!normalizedPlayerId) {
     throw new Error('Player ID is required.');
+  }
+
+  if (!normalizedGameId) {
+    throw new Error('Game ID is required.');
+  }
+
+  if (!roundStartedAt) {
+    throw new Error('Round start is required.');
   }
 
   if (!Array.isArray(words)) {
@@ -486,26 +493,25 @@ export async function submitWords(playerId, words) {
     .map((word) => String(word ?? '').trim().toLowerCase())
     .filter((word) => word.length > 0);
 
-  const updateResult = await supabase
-    .from('boggle_players')
-    .update({
-      words_found: normalizedWords,
-    })
-    .eq('id', normalizedPlayerId)
-    .select('*')
-    .single();
+  const rpcResult = await supabase.rpc('submit_boggle_words_for_round', {
+    p_player_id: normalizedPlayerId,
+    p_game_id: normalizedGameId,
+    p_round_started_at: roundStartedAt,
+    p_words: normalizedWords,
+    p_grace_seconds: SUBMISSION_GRACE_SECONDS,
+  });
 
-  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to submit words');
+  return parseSingleResult(rpcResult.data, rpcResult.error, 'Failed to submit words');
 }
 
-export async function saveRoundResults(gameId, players, boardSize) {
+export async function saveRoundResults(gameId, players, boardSize, roundStartedAt) {
   const normalizedGameId = String(gameId ?? '').trim();
 
   if (!normalizedGameId) {
     throw new Error('Game ID is required.');
   }
 
-  const playerSummaries = buildRoundPlayerSummaries(players, boardSize);
+  const playerSummaries = buildRoundPlayerSummaries(players, boardSize, roundStartedAt);
 
   if (playerSummaries.length === 0) {
     return [];
@@ -573,22 +579,18 @@ export async function getRoundHistory(gameId) {
   return Array.isArray(query.data) ? query.data : [];
 }
 
-export async function endGame(gameId) {
+export async function endGame(gameId, { force = false } = {}) {
   const normalizedGameId = String(gameId ?? '').trim();
 
   if (!normalizedGameId) {
     throw new Error('Game ID is required.');
   }
 
-  const updateResult = await supabase
-    .from('boggle_games')
-    .update({
-      status: 'finished',
-    })
-    .eq('id', normalizedGameId)
-    .in('status', ['countdown', 'playing', 'paused'])
-    .select('*')
-    .maybeSingle();
+  const updateResult = await supabase.rpc('finish_boggle_round', {
+    p_game_id: normalizedGameId,
+    p_grace_seconds: SUBMISSION_GRACE_SECONDS,
+    p_force: force,
+  });
 
   const endedGame = parseSingleResult(
     updateResult.data,
@@ -597,7 +599,7 @@ export async function endGame(gameId) {
   );
 
   const players = await getPlayersByGameId(normalizedGameId);
-  await saveRoundResults(normalizedGameId, players, endedGame.board_size);
+  await saveRoundResults(normalizedGameId, players, endedGame.board_size, endedGame.started_at);
 
   return endedGame;
 }

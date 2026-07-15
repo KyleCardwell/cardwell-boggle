@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate, useParams } from 'react-router-dom'
 import Board from './Board'
@@ -47,6 +47,11 @@ import {
 } from '../utils/playerSession'
 
 const HOVER_HIGHLIGHT_STEP_MS = 200
+const FINISH_RETRY_DELAY_MS = 1000
+const ROUND_FINISH_GRACE_MS = 5000
+const ROUND_FINISH_SAFETY_BUFFER_MS = 300
+const WORD_PERSIST_DEBOUNCE_MS = 2000
+const WORD_PERSIST_RETRY_DELAY_MS = 1000
 
 function formatCompactTime(seconds) {
   const safeSeconds = Math.max(0, Number(seconds) || 0)
@@ -54,6 +59,73 @@ function formatCompactTime(seconds) {
   const remainder = safeSeconds % 60
 
   return `${minutes}:${String(remainder).padStart(2, '0')}`
+}
+
+function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
+  const firstTime = new Date(firstStartedAt).getTime()
+  const secondTime = new Date(secondStartedAt).getTime()
+
+  return Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime === secondTime
+}
+
+function playerWordsBelongToRound(playerRow, roundStartedAt) {
+  const words = Array.isArray(playerRow?.words_found) ? playerRow.words_found : []
+  const wordCount = Number(playerRow?.word_count ?? 0)
+
+  if (words.length === 0 && (!Number.isInteger(wordCount) || wordCount === 0)) {
+    return true
+  }
+
+  return isSameRoundStartedAt(playerRow?.words_round_started_at, roundStartedAt)
+}
+
+function getPlayerForRound(playerRow, roundStartedAt) {
+  if (!playerRow) {
+    return playerRow
+  }
+
+  if (playerWordsBelongToRound(playerRow, roundStartedAt)) {
+    return playerRow
+  }
+
+  return {
+    ...playerRow,
+    words_found: [],
+    word_count: 0,
+    score: 0,
+  }
+}
+
+function isRoundStillAcceptingSubmissions(error) {
+  return String(error?.message ?? '').includes('Round is still accepting submissions.')
+}
+
+function isWordSubmissionClosed(error) {
+  const message = String(error?.message ?? '')
+
+  return (
+    message.includes('Words are from a stale round.') ||
+    message.includes('Words can only be submitted while the round is playing.') ||
+    message.includes('Round has ended.')
+  )
+}
+
+function getWordsKey(words) {
+  return (Array.isArray(words) ? words : [])
+    .map((word) => String(word ?? '').trim().toLowerCase())
+    .join('\u0000')
+}
+
+function getRoundFinishWaitMs(game) {
+  const startedAtMs = new Date(game?.startedAt).getTime()
+  const durationMs = Number(game?.durationSeconds) * 1000
+
+  if (!Number.isFinite(startedAtMs) || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return 0
+  }
+
+  const finishAllowedAtMs = startedAtMs + durationMs + ROUND_FINISH_GRACE_MS + ROUND_FINISH_SAFETY_BUFFER_MS
+  return Math.max(0, finishAllowedAtMs - Date.now())
 }
 
 function GamePage() {
@@ -79,15 +151,22 @@ function GamePage() {
   const [isMobileViewport, setIsMobileViewport] = useState(false)
   const [inputMode, setInputMode] = useState('type')
   const [boardRotationDegrees, setBoardRotationDegrees] = useState(0)
+  const [isRoundFinishing, setIsRoundFinishing] = useState(false)
 
   const activatedRef = useRef(false)
   const endingRef = useRef(false)
   const pauseSourceStatusRef = useRef(null)
   const highlightTimeoutIdsRef = useRef([])
   const playerIdRef = useRef(player.playerId)
+  const gameIdRef = useRef(game.gameId)
   const gameStartedAtRef = useRef(game.startedAt)
-  const hostIdRef = useRef(null)
+  const latestLocalWordsRef = useRef(player.wordsFound)
+  const pendingWordsPersistRef = useRef(null)
+  const wordPersistTimerRef = useRef(null)
+  const wordPersistInFlightRef = useRef(null)
+  const flushQueuedWordPersistRef = useRef(null)
   const wasShowingInputModeToggleRef = useRef(false)
+  const finishRetryTimeoutRef = useRef(null)
 
   const normalizedGameCode = String(gameCode ?? '').trim().toUpperCase()
   const currentRoundKey = `${game.gameId ?? ''}:${game.startedAt ?? ''}`
@@ -107,12 +186,16 @@ function GamePage() {
   }, [player.playerId])
 
   useEffect(() => {
+    gameIdRef.current = game.gameId
+  }, [game.gameId])
+
+  useEffect(() => {
     gameStartedAtRef.current = game.startedAt
   }, [game.startedAt])
 
   useEffect(() => {
-    hostIdRef.current = hostId
-  }, [hostId])
+    latestLocalWordsRef.current = player.wordsFound
+  }, [player.wordsFound])
 
   const canStart =
     game.status === 'waiting' && game.players.length >= 1 && player.playerId && player.playerId === hostId
@@ -175,7 +258,7 @@ function GamePage() {
 
         setDictionary(dictionarySet)
         dispatch(setGame(gameRow))
-        dispatch(setPlayers(players))
+        dispatch(setPlayers(players.map((entry) => getPlayerForRound(entry, gameRow.started_at))))
         dispatch(setRoundHistory(roundHistory))
 
         const storedPlayerSession = getStoredPlayerSession(normalizedGameCode)
@@ -187,8 +270,9 @@ function GamePage() {
           const currentPlayer = players.find((entry) => entry.id === candidatePlayerId)
 
           if (currentPlayer) {
-            dispatch(setPlayer(currentPlayer))
-            dispatch(setScore(scoreWords(currentPlayer.words_found)))
+            const currentRoundPlayer = getPlayerForRound(currentPlayer, gameRow.started_at)
+            dispatch(setPlayer(currentRoundPlayer))
+            dispatch(setScore(scoreWords(currentRoundPlayer.words_found)))
             savePlayerSession(normalizedGameCode, currentPlayer)
           } else {
             clearStoredPlayerSession(normalizedGameCode)
@@ -308,19 +392,35 @@ function GamePage() {
           setPlayAgainError('')
         }
 
+        if (nextGame.status !== 'playing') {
+          setIsRoundFinishing(false)
+        }
+
         if (nextGame.status === 'countdown') {
           const nextStartedAt = String(nextGame.started_at ?? '').trim()
           const currentStartedAt = String(gameStartedAtRef.current ?? '').trim()
           const isNewRound = Boolean(nextStartedAt && nextStartedAt !== currentStartedAt)
-          const isCurrentPlayerHost =
-            Boolean(playerIdRef.current) && playerIdRef.current === hostIdRef.current
-
           if (isNewRound) {
+            if (wordPersistTimerRef.current) {
+              clearTimeout(wordPersistTimerRef.current)
+              wordPersistTimerRef.current = null
+            }
+
+            pendingWordsPersistRef.current = null
+            latestLocalWordsRef.current = []
             setBoardRotationDegrees(0)
           }
 
-          if (isNewRound && playerIdRef.current && !isCurrentPlayerHost) {
-            dispatch(setPlayer({ id: playerIdRef.current, words_found: [], score: 0 }))
+          if (isNewRound && playerIdRef.current) {
+            dispatch(
+              setPlayer({
+                id: playerIdRef.current,
+                words_found: [],
+                word_count: 0,
+                words_round_started_at: nextStartedAt,
+                score: 0,
+              }),
+            )
             dispatch(setScore(0))
             dispatch(setAllWords([]))
           }
@@ -361,13 +461,35 @@ function GamePage() {
           return
         }
 
-        dispatch(updatePlayer(updatedPlayer))
+        const currentRoundStartedAt = gameStartedAtRef.current
+        const currentRoundPlayer = getPlayerForRound(updatedPlayer, currentRoundStartedAt)
 
         if (updatedPlayer.id === player.playerId) {
-          dispatch(setPlayer(updatedPlayer))
-          dispatch(setScore(scoreWords(updatedPlayer.words_found)))
+          const incomingWordsKey = getWordsKey(currentRoundPlayer.words_found)
+          const latestLocalWordsKey = getWordsKey(latestLocalWordsRef.current)
+          const hasQueuedLocalSave = Boolean(
+            pendingWordsPersistRef.current ||
+              wordPersistInFlightRef.current ||
+              wordPersistTimerRef.current,
+          )
+          const playerForDisplay =
+            hasQueuedLocalSave && incomingWordsKey !== latestLocalWordsKey
+              ? {
+                  ...currentRoundPlayer,
+                  words_found: latestLocalWordsRef.current,
+                  word_count: latestLocalWordsRef.current.length,
+                  score: scoreWords(latestLocalWordsRef.current),
+                }
+              : currentRoundPlayer
+
+          dispatch(updatePlayer(playerForDisplay))
+          dispatch(setPlayer(playerForDisplay))
+          dispatch(setScore(scoreWords(playerForDisplay.words_found)))
           savePlayerSession(normalizedGameCode, updatedPlayer)
+          return
         }
+
+        dispatch(updatePlayer(currentRoundPlayer))
       },
     )
 
@@ -428,6 +550,17 @@ function GamePage() {
       for (const timeoutId of highlightTimeoutIdsRef.current) {
         clearTimeout(timeoutId)
       }
+
+      if (finishRetryTimeoutRef.current) {
+        clearTimeout(finishRetryTimeoutRef.current)
+      }
+
+      if (wordPersistTimerRef.current) {
+        clearTimeout(wordPersistTimerRef.current)
+        wordPersistTimerRef.current = null
+      }
+
+      pendingWordsPersistRef.current = null
     },
     [],
   )
@@ -485,6 +618,19 @@ function GamePage() {
         durationSeconds: updatedGame.duration_seconds,
       }),
     )
+    dispatch(setAllWords([]))
+    clearQueuedWordPersist()
+    latestLocalWordsRef.current = []
+    dispatch(
+      setPlayer({
+        id: player.playerId,
+        words_found: [],
+        word_count: 0,
+        words_round_started_at: updatedGame.started_at,
+        score: 0,
+      }),
+    )
+    dispatch(setScore(0))
     setBoardRotationDegrees(0)
   }
 
@@ -572,6 +718,128 @@ function GamePage() {
     }
   }
 
+  const clearQueuedWordPersist = () => {
+    if (wordPersistTimerRef.current) {
+      clearTimeout(wordPersistTimerRef.current)
+      wordPersistTimerRef.current = null
+    }
+
+    pendingWordsPersistRef.current = null
+  }
+
+  const flushQueuedWordPersist = useCallback(async () => {
+    if (wordPersistTimerRef.current) {
+      clearTimeout(wordPersistTimerRef.current)
+      wordPersistTimerRef.current = null
+    }
+
+    if (wordPersistInFlightRef.current) {
+      return wordPersistInFlightRef.current
+    }
+
+    const persistPromise = (async () => {
+      while (pendingWordsPersistRef.current) {
+        const wordsToPersist = [...pendingWordsPersistRef.current]
+        const wordsToPersistKey = getWordsKey(wordsToPersist)
+        const playerId = playerIdRef.current
+        const gameId = gameIdRef.current
+        const roundStartedAt = gameStartedAtRef.current
+
+        pendingWordsPersistRef.current = null
+
+        if (!playerId || !gameId || !roundStartedAt) {
+          return null
+        }
+
+        try {
+          const updatedPlayer = await submitWords(playerId, gameId, roundStartedAt, wordsToPersist)
+          const currentRoundPlayer = getPlayerForRound(updatedPlayer, gameStartedAtRef.current)
+          const latestLocalWordsKey = getWordsKey(latestLocalWordsRef.current)
+
+          if (latestLocalWordsKey === wordsToPersistKey) {
+            dispatch(updatePlayer(currentRoundPlayer))
+            dispatch(setPlayer(currentRoundPlayer))
+            dispatch(setScore(scoreWords(currentRoundPlayer.words_found)))
+          }
+        } catch (error) {
+          if (isWordSubmissionClosed(error)) {
+            return null
+          }
+
+          pendingWordsPersistRef.current = [...latestLocalWordsRef.current]
+          wordPersistTimerRef.current = setTimeout(() => {
+            wordPersistTimerRef.current = null
+            flushQueuedWordPersistRef.current?.().catch(() => {})
+          }, WORD_PERSIST_RETRY_DELAY_MS)
+          return null
+        }
+      }
+
+      return null
+    })()
+
+    wordPersistInFlightRef.current = persistPromise
+
+    try {
+      return await persistPromise
+    } finally {
+      wordPersistInFlightRef.current = null
+
+      if (pendingWordsPersistRef.current && !wordPersistTimerRef.current) {
+        flushQueuedWordPersistRef.current?.().catch(() => {})
+      }
+    }
+  }, [dispatch])
+
+  useEffect(() => {
+    flushQueuedWordPersistRef.current = flushQueuedWordPersist
+  }, [flushQueuedWordPersist])
+
+  const queueWordPersist = (nextWords, { immediate = false } = {}) => {
+    pendingWordsPersistRef.current = [...nextWords]
+
+    if (wordPersistTimerRef.current) {
+      clearTimeout(wordPersistTimerRef.current)
+      wordPersistTimerRef.current = null
+    }
+
+    if (immediate) {
+      flushQueuedWordPersist().catch(() => {})
+      return
+    }
+
+    wordPersistTimerRef.current = setTimeout(() => {
+      wordPersistTimerRef.current = null
+      flushQueuedWordPersist().catch(() => {})
+    }, WORD_PERSIST_DEBOUNCE_MS)
+  }
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+      return undefined
+    }
+
+    const flushWordsSoon = () => {
+      if (game.status === 'playing') {
+        flushQueuedWordPersist().catch(() => {})
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushWordsSoon()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('pagehide', flushWordsSoon)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('pagehide', flushWordsSoon)
+    }
+  }, [game.status, flushQueuedWordPersist])
+
   const handlePauseButtonClick = async () => {
     if (!game.gameId || !canPauseGame) {
       return
@@ -626,7 +894,9 @@ function GamePage() {
       const updatedGame = await resetGameToWaiting(game.gameId)
       dispatch(setGame(updatedGame))
       dispatch(setAllWords([]))
-      dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
+      clearQueuedWordPersist()
+      latestLocalWordsRef.current = []
+      dispatch(setPlayer({ id: player.playerId, words_found: [], word_count: 0, words_round_started_at: null, score: 0 }))
       dispatch(setScore(0))
     } catch (error) {
       setPlayAgainError(error.message || 'Unable to start a new round.')
@@ -650,7 +920,17 @@ function GamePage() {
         }),
       )
       dispatch(setAllWords([]))
-      dispatch(setPlayer({ id: player.playerId, words_found: [], score: 0 }))
+      clearQueuedWordPersist()
+      latestLocalWordsRef.current = []
+      dispatch(
+        setPlayer({
+          id: player.playerId,
+          words_found: [],
+          word_count: 0,
+          words_round_started_at: updatedGame.started_at,
+          score: 0,
+        }),
+      )
       dispatch(setScore(0))
       setBoardRotationDegrees(0)
       setIsPauseModalOpen(false)
@@ -664,59 +944,57 @@ function GamePage() {
     }
 
     await runControllerAction(async () => {
-      await endGame(game.gameId)
+      await flushQueuedWordPersist()
+      await endGame(game.gameId, { force: true })
       setIsPauseModalOpen(false)
       pauseSourceStatusRef.current = null
     })
   }
 
-  const persistWords = async (nextWords) => {
+  const ensureWordsCanBeQueued = () => {
     if (!player.playerId) {
       throw new Error('You must join the game before submitting words.')
     }
 
-    await submitWords(player.playerId, nextWords)
+    if (!game.gameId || !game.startedAt) {
+      throw new Error('Round is not ready for word submissions.')
+    }
   }
 
   const handleSubmitWord = async (word) => {
     const normalizedWord = String(word ?? '').trim().toLowerCase()
+    const currentWords = latestLocalWordsRef.current
 
-    if (!normalizedWord || player.wordsFound.includes(normalizedWord)) {
+    if (!normalizedWord || currentWords.includes(normalizedWord)) {
       return
     }
 
-    const nextWords = [...player.wordsFound, normalizedWord]
+    ensureWordsCanBeQueued()
 
+    const nextWords = [...currentWords, normalizedWord]
+
+    latestLocalWordsRef.current = nextWords
     dispatch(addWord(normalizedWord))
     dispatch(setScore(scoreWords(nextWords)))
-
-    try {
-      await persistWords(nextWords)
-    } catch (error) {
-      dispatch(removeWord(normalizedWord))
-      dispatch(setScore(scoreWords(player.wordsFound)))
-      throw error
-    }
+    queueWordPersist(nextWords)
   }
 
   const handleRemoveWord = async (word) => {
     const normalizedWord = String(word ?? '').trim().toLowerCase()
+    const currentWords = latestLocalWordsRef.current
 
-    if (!normalizedWord || !player.wordsFound.includes(normalizedWord)) {
+    if (!normalizedWord || !currentWords.includes(normalizedWord)) {
       return
     }
 
-    const nextWords = player.wordsFound.filter((entry) => entry !== normalizedWord)
+    ensureWordsCanBeQueued()
 
+    const nextWords = currentWords.filter((entry) => entry !== normalizedWord)
+
+    latestLocalWordsRef.current = nextWords
     dispatch(removeWord(normalizedWord))
     dispatch(setScore(scoreWords(nextWords)))
-
-    try {
-      await persistWords(nextWords)
-    } catch {
-      dispatch(addWord(normalizedWord))
-      dispatch(setScore(scoreWords(player.wordsFound)))
-    }
+    queueWordPersist(nextWords)
   }
 
   const handleTimerExpired = async () => {
@@ -725,17 +1003,42 @@ function GamePage() {
     }
 
     endingRef.current = true
+    setIsRoundFinishing(true)
+
+    const finishWaitMs = getRoundFinishWaitMs(game)
+
+    if (finishWaitMs > 0) {
+      await flushQueuedWordPersist()
+      finishRetryTimeoutRef.current = setTimeout(() => {
+        finishRetryTimeoutRef.current = null
+        endingRef.current = false
+        handleTimerExpired()
+      }, finishWaitMs)
+      return
+    }
 
     let didFinish = false
 
     try {
+      await flushQueuedWordPersist()
       await endGame(game.gameId)
       didFinish = true
-    } catch {
+    } catch (error) {
+      if (isRoundStillAcceptingSubmissions(error)) {
+        finishRetryTimeoutRef.current = setTimeout(() => {
+          finishRetryTimeoutRef.current = null
+          endingRef.current = false
+          handleTimerExpired()
+        }, FINISH_RETRY_DELAY_MS)
+        return
+      }
+
       endingRef.current = false
+      setIsRoundFinishing(false)
     }
 
     if (didFinish) {
+      setIsRoundFinishing(false)
       dispatch(updateGameStatus('finished'))
     }
   }
@@ -776,6 +1079,7 @@ function GamePage() {
   const effectiveInputMode = showInputModeToggle ? inputMode : 'type'
   const isSwipeMode = effectiveInputMode === 'swipe'
   const isBoardTraceMode = isSwipeMode
+  const effectivePlayStatus = isRoundFinishing ? 'finished' : game.status
   const shouldCompactBoardForMobile = isMobileViewport
   const compactBoardWidthPercent =
     game.boardSize >= 8 ? 62 : game.boardSize >= 6 ? 58 : game.boardSize >= 5 ? 54 : 50
@@ -892,9 +1196,19 @@ function GamePage() {
                     </button>
                   </div>
 
-                  <span className="text-lg font-bold text-ui-text [font-variant-numeric:tabular-nums]">
-                    Time: {formatCompactTime(game.timeRemaining)}
-                  </span>
+                  {isRoundFinishing ? (
+                    <span className="inline-flex items-center gap-2 text-lg font-bold text-ui-text">
+                      <span
+                        aria-hidden="true"
+                        className="h-4 w-4 rounded-full border-2 border-ui-muted border-t-ui-primary motion-safe:animate-spin"
+                      />
+                      <span>Time&apos;s up!</span>
+                    </span>
+                  ) : (
+                    <span className="text-lg font-bold text-ui-text [font-variant-numeric:tabular-nums]">
+                      Time: {formatCompactTime(game.timeRemaining)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="hidden">
@@ -902,6 +1216,7 @@ function GamePage() {
                     status={game.status}
                     countdownRemaining={game.countdownRemaining}
                     timeRemaining={game.timeRemaining}
+                    isFinishing={isRoundFinishing}
                     onTimeExpired={handleTimerExpired}
                   />
                 </div>
@@ -912,7 +1227,7 @@ function GamePage() {
               <SwipeBoard
                 board={game.board}
                 size={game.boardSize}
-                status={game.status}
+                status={effectivePlayStatus}
                 countdownRemaining={game.countdownRemaining}
                 inputMode={effectiveInputMode}
                 isCompact={shouldCompactBoardForMobile}
@@ -931,7 +1246,7 @@ function GamePage() {
               <Board
                 board={game.board}
                 size={game.boardSize}
-                status={game.status}
+                status={effectivePlayStatus}
                 countdownRemaining={game.countdownRemaining}
                 isCompact={shouldCompactBoardForMobile}
                 highlightedPath={
@@ -951,6 +1266,7 @@ function GamePage() {
               status={game.status}
               countdownRemaining={game.countdownRemaining}
               timeRemaining={game.timeRemaining}
+              isFinishing={isRoundFinishing}
               onTimeExpired={handleTimerExpired}
             />
           ) : null}
@@ -998,7 +1314,7 @@ function GamePage() {
               dictionary={dictionary}
               board={game.board}
               boardSize={game.boardSize}
-              status={game.status}
+              status={effectivePlayStatus}
               wordsFound={player.wordsFound}
               onSubmitWord={handleSubmitWord}
               onRemoveWord={handleRemoveWord}
@@ -1013,6 +1329,7 @@ function GamePage() {
               allWords={game.allWords}
               roundHistory={game.roundHistory}
               boardSize={game.boardSize}
+              currentRoundStartedAt={game.startedAt}
               onWordHover={handleAllWordsWordHover}
               onWordHoverEnd={handleAllWordsWordHoverEnd}
             />

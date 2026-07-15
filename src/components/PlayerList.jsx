@@ -4,7 +4,12 @@ function PlayerList({ players }) {
       <h3 className="mt-0">Players</h3>
       <ul className="m-0 pl-5">
         {players.map((player) => {
-          const count = Array.isArray(player.words_found) ? player.words_found.length : 0
+          const savedCount = Number(player.word_count)
+          const count = Number.isInteger(savedCount) && savedCount >= 0
+            ? savedCount
+            : Array.isArray(player.words_found)
+              ? player.words_found.length
+              : 0
 
           return (
             <li key={player.id}>

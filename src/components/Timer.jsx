@@ -8,7 +8,7 @@ function formatSeconds(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
 }
 
-function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
+function Timer({ status, countdownRemaining, timeRemaining, isFinishing = false, onTimeExpired }) {
   const hasExpiredRef = useRef(false)
 
   useEffect(() => {
@@ -37,6 +37,20 @@ function Timer({ status, countdownRemaining, timeRemaining, onTimeExpired }) {
   }
 
   if (status === 'playing') {
+    if (isFinishing) {
+      return (
+        <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-center text-[1.5rem] font-bold text-ui-text">
+          <span className="inline-flex items-center justify-center gap-3">
+            <span
+              aria-hidden="true"
+              className="h-5 w-5 rounded-full border-2 border-ui-muted border-t-ui-primary motion-safe:animate-spin"
+            />
+            <span>Time&apos;s up!</span>
+          </span>
+        </section>
+      )
+    }
+
     return (
       <section className="rounded-xl border border-ui-border bg-ui-surface p-4 text-center text-[1.5rem] font-bold text-ui-text [font-variant-numeric:tabular-nums]">
         Time Remaining: {formatSeconds(timeRemaining)}

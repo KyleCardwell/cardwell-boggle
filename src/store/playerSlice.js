@@ -5,6 +5,8 @@ function getInitialState() {
     playerId: null,
     displayName: '',
     wordsFound: [],
+    wordsRoundStartedAt: null,
+    wordCount: 0,
     score: 0,
   }
 }
@@ -18,11 +20,24 @@ const playerSlice = createSlice({
 
       state.playerId = payload.id ?? payload.playerId ?? state.playerId
       state.displayName = payload.display_name ?? payload.displayName ?? state.displayName
+      if (
+        Object.prototype.hasOwnProperty.call(payload, 'words_round_started_at') ||
+        Object.prototype.hasOwnProperty.call(payload, 'wordsRoundStartedAt')
+      ) {
+        state.wordsRoundStartedAt = payload.words_round_started_at ?? payload.wordsRoundStartedAt ?? null
+      }
 
       if (Array.isArray(payload.words_found)) {
         state.wordsFound = payload.words_found
       } else if (Array.isArray(payload.wordsFound)) {
         state.wordsFound = payload.wordsFound
+      }
+
+      const wordCount = Number(payload.word_count ?? payload.wordCount)
+      if (Number.isInteger(wordCount) && wordCount >= 0) {
+        state.wordCount = wordCount
+      } else {
+        state.wordCount = state.wordsFound.length
       }
 
       const score = Number(payload.score)
@@ -39,6 +54,7 @@ const playerSlice = createSlice({
 
       if (!state.wordsFound.includes(word)) {
         state.wordsFound.push(word)
+        state.wordCount = state.wordsFound.length
       }
     },
     removeWord(state, action) {
@@ -49,6 +65,7 @@ const playerSlice = createSlice({
       }
 
       state.wordsFound = state.wordsFound.filter((entry) => entry !== word)
+      state.wordCount = state.wordsFound.length
     },
     setScore(state, action) {
       const score = Number(action.payload)
