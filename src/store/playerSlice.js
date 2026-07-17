@@ -7,6 +7,7 @@ function getInitialState() {
     displayName: '',
     wordsFound: [],
     wordsRoundStartedAt: null,
+    readyAt: null,
     wordCount: 0,
     score: 0,
   }
@@ -26,6 +27,13 @@ const playerSlice = createSlice({
         Object.prototype.hasOwnProperty.call(payload, 'wordsRoundStartedAt')
       ) {
         state.wordsRoundStartedAt = payload.words_round_started_at ?? payload.wordsRoundStartedAt ?? null
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(payload, 'ready_at') ||
+        Object.prototype.hasOwnProperty.call(payload, 'readyAt')
+      ) {
+        state.readyAt = payload.ready_at ?? payload.readyAt ?? null
       }
 
       if (Array.isArray(payload.words_found)) {

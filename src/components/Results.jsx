@@ -1,6 +1,7 @@
 import { scoreWord } from '../utils/scoring'
 import { getWordText, getWordsForRound as getTaggedWordsForRound } from '../utils/roundWords'
 import { getMinimumWordLength } from '../utils/wordValidation'
+import ReadyStatusPanel from './ReadyStatusPanel'
 import Scoreboard from './Scoreboard'
 
 function groupWordsByLength(words) {
@@ -84,6 +85,10 @@ function Results({
   boardSize,
   currentRoundStartedAt,
   gameId,
+  currentPlayerId,
+  isReadyPending,
+  readyError,
+  onToggleReady,
   onWordHover,
   onWordHoverEnd,
 }) {
@@ -172,6 +177,14 @@ function Results({
       </div>
 
       {roundHistory.length > 0 ? <Scoreboard roundHistory={roundHistory} players={players} /> : null}
+
+      <ReadyStatusPanel
+        players={players}
+        currentPlayerId={currentPlayerId}
+        isReadyPending={isReadyPending}
+        readyError={readyError}
+        onToggleReady={onToggleReady}
+      />
     </section>
   )
 }

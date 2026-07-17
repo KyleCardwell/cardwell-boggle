@@ -4,6 +4,7 @@ import {
   DURATION_OPTIONS,
   formatDurationLabel,
 } from '../constants/gameSettings'
+import ReadyStatusPanel from './ReadyStatusPanel'
 import Scoreboard from './Scoreboard'
 
 function Lobby({
@@ -13,14 +14,19 @@ function Lobby({
   canStart,
   boardSize,
   durationSeconds,
+  currentPlayerId,
   isHost,
   isSavingSettings,
   settingsError,
+  isReadyPending,
+  readyError,
   onStartGame,
   onSaveSettings,
+  onToggleReady,
 }) {
   const [selectedBoardSize, setSelectedBoardSize] = useState(boardSize)
   const [selectedDurationSeconds, setSelectedDurationSeconds] = useState(durationSeconds)
+  const showReadyStatus = Boolean(onToggleReady) || players.some((player) => player.ready_at ?? player.readyAt)
 
   const hasUnsavedChanges =
     Number(selectedBoardSize) !== Number(boardSize) ||
@@ -103,24 +109,29 @@ function Lobby({
         </form>
       ) : null}
 
-      {canStart ? (
-        <button
-          type="button"
-          onClick={onStartGame}
-          className="mt-4 mb-8 mr-0 rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
-        >
-          Start Game
-        </button>
-      ) : null}
+      <div className="mb-4 grid gap-3">
+        {canStart ? (
+          <button
+            type="button"
+            onClick={onStartGame}
+            className="justify-self-start rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover"
+          >
+            Start Game
+          </button>
+        ) : null}
+
+        {showReadyStatus ? (
+          <ReadyStatusPanel
+            players={players}
+            currentPlayerId={currentPlayerId}
+            isReadyPending={isReadyPending}
+            readyError={readyError}
+            onToggleReady={onToggleReady}
+          />
+        ) : null}
+      </div>
 
       {roundHistory.length > 0 ? <Scoreboard roundHistory={roundHistory} players={players} /> : null}
-
-      <h3 className="mb-2">Players ({players.length})</h3>
-      <ul className="m-0 pl-5">
-        {players.map((player) => (
-          <li key={player.id}>{player.display_name}</li>
-        ))}
-      </ul>
 
       
     </section>
