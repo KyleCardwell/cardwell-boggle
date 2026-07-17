@@ -4,6 +4,8 @@ add column if not exists words_round_started_at timestamptz;
 alter table public.boggle_players
 add column if not exists word_count integer not null default 0 check (word_count >= 0);
 
+drop function if exists public.start_boggle_round(uuid, jsonb, timestamptz);
+
 create or replace function public.start_boggle_round(
   p_game_id uuid,
   p_board jsonb default null,
@@ -49,6 +51,8 @@ begin
   return v_game;
 end;
 $$;
+
+drop function if exists public.submit_boggle_words_for_round(uuid, uuid, timestamptz, jsonb, integer);
 
 create or replace function public.submit_boggle_words_for_round(
   p_player_id uuid,
@@ -110,13 +114,42 @@ begin
     raise exception 'Round has ended.';
   end if;
 
-  select coalesce(jsonb_agg(word order by first_seen_at), '[]'::jsonb)
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'word', word,
+        'gameId', p_game_id::text,
+        'roundId', v_game_started_at::text
+      )
+      order by first_seen_at
+    ),
+    '[]'::jsonb
+  )
   into v_normalized_words
   from (
-    select lower(trim(value)) as word, min(ordinality) as first_seen_at
-    from jsonb_array_elements_text(p_words) with ordinality
-    where length(trim(value)) > 0
-    group by lower(trim(value))
+    select word, min(ordinality) as first_seen_at
+    from (
+      select
+        case
+          when jsonb_typeof(value) = 'string' then lower(trim(value #>> '{}'))
+          when jsonb_typeof(value) = 'object' then lower(trim(coalesce(value ->> 'word', value ->> 'text', value ->> 'value')))
+          else ''
+        end as word,
+        case
+          when jsonb_typeof(value) = 'object' then coalesce(value ->> 'gameId', value ->> 'game_id')
+          else null
+        end as word_game_id,
+        case
+          when jsonb_typeof(value) = 'object' then coalesce(value ->> 'roundId', value ->> 'round_id', value ->> 'roundStartedAt', value ->> 'round_started_at')
+          else null
+        end as word_round_id,
+        ordinality
+      from jsonb_array_elements(p_words) with ordinality
+    ) submitted_words
+    where length(word) > 0
+      and word_game_id = p_game_id::text
+      and word_round_id::timestamptz = v_game_started_at
+    group by word
   ) normalized;
 
   update public.boggle_players
@@ -131,6 +164,8 @@ begin
   return v_player;
 end;
 $$;
+
+drop function if exists public.finish_boggle_round(uuid, integer, boolean);
 
 create or replace function public.finish_boggle_round(
   p_game_id uuid,

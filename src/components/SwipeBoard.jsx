@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Board from './Board'
+import { getWordTexts } from '../utils/roundWords'
 import { canConstructWord, getMinimumWordLength } from '../utils/wordValidation'
 
 function getTileIndexFromElement(element) {
@@ -336,7 +337,7 @@ function SwipeBoard({
   const tileGeometryRef = useRef(new Map())
   const lastTouchPointRef = useRef(null)
 
-  const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
+  const wordsSet = useMemo(() => new Set(getWordTexts(wordsFound)), [wordsFound])
   const activeBoardSize = Number.isInteger(boardSize) ? boardSize : size
   const minimumWordLength = getMinimumWordLength(activeBoardSize)
   const swipeGridGap = useMemo(() => {

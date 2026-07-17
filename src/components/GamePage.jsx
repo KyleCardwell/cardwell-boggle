@@ -41,6 +41,15 @@ import {
 import { addWord, removeWord, resetPlayer, setPlayer, setScore } from '../store/playerSlice'
 import { scoreWords } from '../utils/scoring'
 import {
+  addWordToRound,
+  getWordText,
+  getWordsForRound,
+  getWordsKey,
+  makeRoundWordEntry,
+  removeWordFromRound,
+  wordListIncludes,
+} from '../utils/roundWords'
+import {
   clearStoredPlayerSession,
   getStoredPlayerSession,
   savePlayerSession,
@@ -68,7 +77,7 @@ function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
   return Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime === secondTime
 }
 
-function playerWordsBelongToRound(playerRow, roundStartedAt) {
+function playerWordsBelongToRound(playerRow, gameId, roundStartedAt) {
   const words = Array.isArray(playerRow?.words_found) ? playerRow.words_found : []
   const wordCount = Number(playerRow?.word_count ?? 0)
 
@@ -76,16 +85,27 @@ function playerWordsBelongToRound(playerRow, roundStartedAt) {
     return true
   }
 
+  if (getWordsForRound(words, gameId, roundStartedAt).length > 0) {
+    return true
+  }
+
   return isSameRoundStartedAt(playerRow?.words_round_started_at, roundStartedAt)
 }
 
-function getPlayerForRound(playerRow, roundStartedAt) {
+function getPlayerForRound(playerRow, gameId, roundStartedAt) {
   if (!playerRow) {
     return playerRow
   }
 
-  if (playerWordsBelongToRound(playerRow, roundStartedAt)) {
-    return playerRow
+  if (playerWordsBelongToRound(playerRow, gameId, roundStartedAt)) {
+    const roundWords = getWordsForRound(playerRow.words_found, gameId, roundStartedAt)
+
+    return {
+      ...playerRow,
+      words_found: roundWords,
+      word_count: roundWords.length,
+      score: scoreWords(roundWords),
+    }
   }
 
   return {
@@ -108,12 +128,6 @@ function isWordSubmissionClosed(error) {
     message.includes('Words can only be submitted while the round is playing.') ||
     message.includes('Round has ended.')
   )
-}
-
-function getWordsKey(words) {
-  return (Array.isArray(words) ? words : [])
-    .map((word) => String(word ?? '').trim().toLowerCase())
-    .join('\u0000')
 }
 
 function getRoundFinishWaitMs(game) {
@@ -194,8 +208,8 @@ function GamePage() {
   }, [game.startedAt])
 
   useEffect(() => {
-    latestLocalWordsRef.current = player.wordsFound
-  }, [player.wordsFound])
+    latestLocalWordsRef.current = getWordsForRound(player.wordsFound, game.gameId, game.startedAt)
+  }, [game.gameId, game.startedAt, player.wordsFound])
 
   const canStart =
     game.status === 'waiting' && game.players.length >= 1 && player.playerId && player.playerId === hostId
@@ -258,7 +272,7 @@ function GamePage() {
 
         setDictionary(dictionarySet)
         dispatch(setGame(gameRow))
-        dispatch(setPlayers(players.map((entry) => getPlayerForRound(entry, gameRow.started_at))))
+        dispatch(setPlayers(players.map((entry) => getPlayerForRound(entry, gameRow.id, gameRow.started_at))))
         dispatch(setRoundHistory(roundHistory))
 
         const storedPlayerSession = getStoredPlayerSession(normalizedGameCode)
@@ -270,7 +284,7 @@ function GamePage() {
           const currentPlayer = players.find((entry) => entry.id === candidatePlayerId)
 
           if (currentPlayer) {
-            const currentRoundPlayer = getPlayerForRound(currentPlayer, gameRow.started_at)
+            const currentRoundPlayer = getPlayerForRound(currentPlayer, gameRow.id, gameRow.started_at)
             dispatch(setPlayer(currentRoundPlayer))
             dispatch(setScore(scoreWords(currentRoundPlayer.words_found)))
             savePlayerSession(normalizedGameCode, currentPlayer)
@@ -462,7 +476,7 @@ function GamePage() {
         }
 
         const currentRoundStartedAt = gameStartedAtRef.current
-        const currentRoundPlayer = getPlayerForRound(updatedPlayer, currentRoundStartedAt)
+        const currentRoundPlayer = getPlayerForRound(updatedPlayer, gameIdRef.current, currentRoundStartedAt)
 
         if (updatedPlayer.id === player.playerId) {
           const incomingWordsKey = getWordsKey(currentRoundPlayer.words_found)
@@ -739,11 +753,11 @@ function GamePage() {
 
     const persistPromise = (async () => {
       while (pendingWordsPersistRef.current) {
-        const wordsToPersist = [...pendingWordsPersistRef.current]
-        const wordsToPersistKey = getWordsKey(wordsToPersist)
         const playerId = playerIdRef.current
         const gameId = gameIdRef.current
         const roundStartedAt = gameStartedAtRef.current
+        const wordsToPersist = getWordsForRound(pendingWordsPersistRef.current, gameId, roundStartedAt)
+        const wordsToPersistKey = getWordsKey(wordsToPersist)
 
         pendingWordsPersistRef.current = null
 
@@ -753,7 +767,7 @@ function GamePage() {
 
         try {
           const updatedPlayer = await submitWords(playerId, gameId, roundStartedAt, wordsToPersist)
-          const currentRoundPlayer = getPlayerForRound(updatedPlayer, gameStartedAtRef.current)
+          const currentRoundPlayer = getPlayerForRound(updatedPlayer, gameIdRef.current, gameStartedAtRef.current)
           const latestLocalWordsKey = getWordsKey(latestLocalWordsRef.current)
 
           if (latestLocalWordsKey === wordsToPersistKey) {
@@ -766,7 +780,7 @@ function GamePage() {
             return null
           }
 
-          pendingWordsPersistRef.current = [...latestLocalWordsRef.current]
+          pendingWordsPersistRef.current = getWordsForRound(latestLocalWordsRef.current, gameIdRef.current, gameStartedAtRef.current)
           wordPersistTimerRef.current = setTimeout(() => {
             wordPersistTimerRef.current = null
             flushQueuedWordPersistRef.current?.().catch(() => {})
@@ -796,7 +810,7 @@ function GamePage() {
   }, [flushQueuedWordPersist])
 
   const queueWordPersist = (nextWords, { immediate = false } = {}) => {
-    pendingWordsPersistRef.current = [...nextWords]
+    pendingWordsPersistRef.current = getWordsForRound(nextWords, gameIdRef.current, gameStartedAtRef.current)
 
     if (wordPersistTimerRef.current) {
       clearTimeout(wordPersistTimerRef.current)
@@ -963,33 +977,34 @@ function GamePage() {
 
   const handleSubmitWord = async (word) => {
     const normalizedWord = String(word ?? '').trim().toLowerCase()
-    const currentWords = latestLocalWordsRef.current
+    const currentWords = getWordsForRound(latestLocalWordsRef.current, game.gameId, game.startedAt)
 
-    if (!normalizedWord || currentWords.includes(normalizedWord)) {
+    if (!normalizedWord || wordListIncludes(currentWords, normalizedWord)) {
       return
     }
 
     ensureWordsCanBeQueued()
 
-    const nextWords = [...currentWords, normalizedWord]
+    const nextWords = addWordToRound(currentWords, normalizedWord, game.gameId, game.startedAt)
+    const nextWordEntry = makeRoundWordEntry(normalizedWord, game.gameId, game.startedAt)
 
     latestLocalWordsRef.current = nextWords
-    dispatch(addWord(normalizedWord))
+    dispatch(addWord(nextWordEntry))
     dispatch(setScore(scoreWords(nextWords)))
     queueWordPersist(nextWords)
   }
 
   const handleRemoveWord = async (word) => {
-    const normalizedWord = String(word ?? '').trim().toLowerCase()
-    const currentWords = latestLocalWordsRef.current
+    const normalizedWord = getWordText(word)
+    const currentWords = getWordsForRound(latestLocalWordsRef.current, game.gameId, game.startedAt)
 
-    if (!normalizedWord || !currentWords.includes(normalizedWord)) {
+    if (!normalizedWord || !wordListIncludes(currentWords, normalizedWord)) {
       return
     }
 
     ensureWordsCanBeQueued()
 
-    const nextWords = currentWords.filter((entry) => entry !== normalizedWord)
+    const nextWords = removeWordFromRound(currentWords, normalizedWord)
 
     latestLocalWordsRef.current = nextWords
     dispatch(removeWord(normalizedWord))
@@ -1277,14 +1292,18 @@ function GamePage() {
 
               {player.wordsFound.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {player.wordsFound.map((word) => (
-                    <span
-                      key={word}
-                      className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text"
-                    >
-                      {word}
-                    </span>
-                  ))}
+                  {player.wordsFound.map((word) => {
+                    const displayWord = getWordText(word)
+
+                    return (
+                      <span
+                        key={displayWord}
+                        className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text"
+                      >
+                        {displayWord}
+                      </span>
+                    )
+                  })}
                 </div>
               ) : (
                 <p className="mb-0 mt-2 text-sm text-ui-muted">No words found yet.</p>
@@ -1330,6 +1349,7 @@ function GamePage() {
               roundHistory={game.roundHistory}
               boardSize={game.boardSize}
               currentRoundStartedAt={game.startedAt}
+              gameId={game.gameId}
               onWordHover={handleAllWordsWordHover}
               onWordHoverEnd={handleAllWordsWordHoverEnd}
             />

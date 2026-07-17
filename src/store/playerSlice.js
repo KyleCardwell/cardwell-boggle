@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit'
+import { addWordToRound, getWordText, removeWordFromRound } from '../utils/roundWords'
 
 function getInitialState() {
   return {
@@ -46,25 +47,29 @@ const playerSlice = createSlice({
       }
     },
     addWord(state, action) {
-      const word = String(action.payload ?? '').trim().toLowerCase()
+      const payload = action.payload
+      const word = getWordText(payload)
 
       if (!word) {
         return
       }
 
-      if (!state.wordsFound.includes(word)) {
-        state.wordsFound.push(word)
-        state.wordCount = state.wordsFound.length
-      }
+      state.wordsFound = addWordToRound(
+        state.wordsFound,
+        word,
+        payload?.gameId ?? payload?.game_id,
+        payload?.roundId ?? payload?.round_id ?? payload?.roundStartedAt ?? payload?.round_started_at,
+      )
+      state.wordCount = state.wordsFound.length
     },
     removeWord(state, action) {
-      const word = String(action.payload ?? '').trim().toLowerCase()
+      const word = getWordText(action.payload)
 
       if (!word) {
         return
       }
 
-      state.wordsFound = state.wordsFound.filter((entry) => entry !== word)
+      state.wordsFound = removeWordFromRound(state.wordsFound, word)
       state.wordCount = state.wordsFound.length
     },
     setScore(state, action) {

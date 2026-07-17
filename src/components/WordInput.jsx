@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { getWordText, getWordTexts } from '../utils/roundWords'
 import { canConstructWord, getMinimumWordLength } from '../utils/wordValidation'
 
 function WordInput({
@@ -15,7 +16,8 @@ function WordInput({
   const [isDuplicateWarning, setIsDuplicateWarning] = useState(false)
   const minimumWordLength = getMinimumWordLength(boardSize)
 
-  const wordsSet = useMemo(() => new Set(wordsFound), [wordsFound])
+  const displayWords = useMemo(() => getWordTexts(wordsFound), [wordsFound])
+  const wordsSet = useMemo(() => new Set(displayWords), [displayWords])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -93,18 +95,22 @@ function WordInput({
       ) : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {wordsFound.map((word) => (
-          <button
-            key={word}
-            type="button"
-            onClick={() => onRemoveWord(word)}
-            disabled={disabled}
-            className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text disabled:cursor-not-allowed disabled:opacity-60"
-            title="Remove word"
-          >
-            {word}
-          </button>
-        ))}
+        {wordsFound.map((word) => {
+          const displayWord = getWordText(word)
+
+          return (
+            <button
+              key={displayWord}
+              type="button"
+              onClick={() => onRemoveWord(word)}
+              disabled={disabled}
+              className="max-w-full truncate rounded-full border border-ui-input-border bg-ui-input-bg px-2.5 py-1 text-sm text-ui-input-text disabled:cursor-not-allowed disabled:opacity-60"
+              title="Remove word"
+            >
+              {displayWord}
+            </button>
+          )
+        })}
       </div>
     </section>
   )

@@ -1,4 +1,5 @@
 import { scoreWord } from '../utils/scoring'
+import { getWordText, getWordsForRound as getTaggedWordsForRound } from '../utils/roundWords'
 import { getMinimumWordLength } from '../utils/wordValidation'
 import Scoreboard from './Scoreboard'
 
@@ -6,7 +7,7 @@ function groupWordsByLength(words) {
   const groups = new Map()
 
   for (const word of Array.isArray(words) ? words : []) {
-    const normalized = String(word ?? '').trim().toLowerCase()
+    const normalized = getWordText(word)
 
     if (!normalized) {
       continue
@@ -32,7 +33,7 @@ function normalizeWords(words, minimumWordLength = 3) {
   }
 
   return words
-    .map((word) => String(word ?? '').trim().toLowerCase())
+    .map((word) => getWordText(word))
     .filter((word) => word.length >= minimumWordLength)
 }
 
@@ -61,8 +62,13 @@ function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
   return Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime === secondTime
 }
 
-function getWordsForRound(player, currentRoundStartedAt, minimumWordLength) {
+function getWordsForRound(player, gameId, currentRoundStartedAt, minimumWordLength) {
   const words = Array.isArray(player?.words_found) ? player.words_found : []
+  const taggedWords = getTaggedWordsForRound(words, gameId, currentRoundStartedAt)
+
+  if (taggedWords.length > 0) {
+    return normalizeWords(taggedWords, minimumWordLength)
+  }
 
   if (words.length > 0 && !isSameRoundStartedAt(player?.words_round_started_at, currentRoundStartedAt)) {
     return []
@@ -77,6 +83,7 @@ function Results({
   roundHistory = [],
   boardSize,
   currentRoundStartedAt,
+  gameId,
   onWordHover,
   onWordHoverEnd,
 }) {
@@ -85,7 +92,7 @@ function Results({
   const groupedAllWords = groupWordsByLength(filteredAllWords)
   const playersForRound = players.map((player) => ({
     ...player,
-    words_found: getWordsForRound(player, currentRoundStartedAt, minimumWordLength),
+    words_found: getWordsForRound(player, gameId, currentRoundStartedAt, minimumWordLength),
   }))
   const sharedWordSet = getSharedWordSet(playersForRound, minimumWordLength)
 

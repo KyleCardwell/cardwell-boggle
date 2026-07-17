@@ -1,5 +1,7 @@
+import { getWordText } from './roundWords'
+
 export function scoreWord(word) {
-  const length = String(word ?? '').trim().length
+  const length = getWordText(word).length
 
   if (length <= 2) {
     return 0

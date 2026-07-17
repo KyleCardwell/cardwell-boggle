@@ -1,5 +1,6 @@
 import { generateBoard, generatePlayableBoard } from '../utils/boardGenerator';
 import { loadDictionary } from '../utils/dictionary';
+import { getWordText, getWordsForRound } from '../utils/roundWords';
 import { scoreWord } from '../utils/scoring';
 import { BOARD_SIZES } from '../constants/gameSettings';
 import { getMinimumWordLength } from '../utils/wordValidation';
@@ -21,7 +22,7 @@ function normalizeWords(words, minimumWordLength) {
   }
 
   return words
-    .map((word) => String(word ?? '').trim().toLowerCase())
+    .map((word) => getWordText(word))
     .filter((word) => word.length >= minimumWordLength);
 }
 
@@ -51,6 +52,12 @@ function isSameRoundStartedAt(firstStartedAt, secondStartedAt) {
 }
 
 function getPlayerWordsForRound(player, roundStartedAt, minimumWordLength) {
+  const taggedWords = getWordsForRound(player?.words_found, player?.game_id, roundStartedAt);
+
+  if (taggedWords.length > 0) {
+    return normalizeWords(taggedWords, minimumWordLength);
+  }
+
   if (!isSameRoundStartedAt(player?.words_round_started_at, roundStartedAt)) {
     return [];
   }
@@ -489,9 +496,7 @@ export async function submitWords(playerId, gameId, roundStartedAt, words) {
     throw new Error('Words must be an array.');
   }
 
-  const normalizedWords = words
-    .map((word) => String(word ?? '').trim().toLowerCase())
-    .filter((word) => word.length > 0);
+  const normalizedWords = getWordsForRound(words, normalizedGameId, roundStartedAt);
 
   const rpcResult = await supabase.rpc('submit_boggle_words_for_round', {
     p_player_id: normalizedPlayerId,
