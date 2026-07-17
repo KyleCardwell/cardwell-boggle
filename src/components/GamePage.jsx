@@ -22,6 +22,7 @@ import {
   submitWords,
   subscribeToGame,
   updateWaitingGameSettings,
+  updatePlayerReady,
 } from '../supabase/gameApi'
 import { loadDictionary } from '../utils/dictionary'
 import { findAllWordsWithPaths } from '../utils/boardSolver'
@@ -160,6 +161,8 @@ function GamePage() {
   const [playAgainError, setPlayAgainError] = useState('')
   const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [settingsError, setSettingsError] = useState('')
+  const [isReadyPending, setIsReadyPending] = useState(false)
+  const [readyError, setReadyError] = useState('')
   const [animatedHighlightedPath, setAnimatedHighlightedPath] = useState([])
   const [highlightedRoundKey, setHighlightedRoundKey] = useState(null)
   const [isMobileViewport, setIsMobileViewport] = useState(false)
@@ -216,6 +219,11 @@ function GamePage() {
   const isController = Boolean(player.playerId && player.playerId === hostId)
   const canEditSettings = isController && game.status === 'waiting'
   const canPauseGame = isController && (game.status === 'countdown' || game.status === 'playing')
+  const currentPlayerRow = useMemo(
+    () => game.players.find((entry) => entry.id === player.playerId) ?? null,
+    [game.players, player.playerId],
+  )
+  const currentPlayerReady = Boolean(currentPlayerRow?.ready_at ?? currentPlayerRow?.readyAt)
 
   const solvedWordData = useMemo(() => {
     if (
@@ -646,6 +654,27 @@ function GamePage() {
     )
     dispatch(setScore(0))
     setBoardRotationDegrees(0)
+  }
+
+  const handleToggleReady = async (isReady) => {
+    if (!player.playerId || isReadyPending) {
+      return
+    }
+
+    setReadyError('')
+    setIsReadyPending(true)
+
+    try {
+      const updatedPlayer = await updatePlayerReady(player.playerId, isReady)
+      const currentRoundPlayer = getPlayerForRound(updatedPlayer, gameIdRef.current, gameStartedAtRef.current)
+      dispatch(updatePlayer(currentRoundPlayer))
+      dispatch(setPlayer(currentRoundPlayer))
+      savePlayerSession(normalizedGameCode, updatedPlayer)
+    } catch (error) {
+      setReadyError(error.message || 'Unable to update ready status.')
+    } finally {
+      setIsReadyPending(false)
+    }
   }
 
   const handleSaveSettings = async ({ boardSize, durationSeconds }) => {
@@ -1146,15 +1175,28 @@ function GamePage() {
           {showResults ? (
             <button
               type="button"
-              onClick={handlePlayAgain}
-              disabled={!isController || isPlayAgainPending}
-              className="rounded-md bg-ui-primary px-3 py-2 font-medium text-ui-input-text transition-colors hover:bg-ui-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={isController ? handlePlayAgain : () => handleToggleReady(!currentPlayerReady)}
+              disabled={
+                isController
+                  ? isPlayAgainPending
+                  : !player.playerId || isReadyPending
+              }
+              aria-pressed={!isController ? currentPlayerReady : undefined}
+              className={`rounded-md px-3 py-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                !isController && currentPlayerReady
+                  ? 'border border-emerald-400/70 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25'
+                  : 'bg-ui-primary text-ui-input-text hover:bg-ui-primary-hover'
+              }`}
             >
               {isPlayAgainPending
                 ? 'Starting next round...'
                 : isController
                   ? 'Play Again'
-                  : 'Waiting for host...'}
+                  : isReadyPending
+                    ? 'Saving...'
+                    : currentPlayerReady
+                      ? 'Ready ✓'
+                      : 'Ready for Next Round'}
             </button>
           ) : null}
         </div>
@@ -1320,11 +1362,15 @@ function GamePage() {
               canStart={canStart}
               boardSize={game.boardSize}
               durationSeconds={game.durationSeconds}
+              currentPlayerId={player.playerId}
               isHost={canEditSettings}
               isSavingSettings={isSavingSettings}
               settingsError={settingsError}
+              isReadyPending={isReadyPending}
+              readyError={readyError}
               onStartGame={handleStartGame}
               onSaveSettings={handleSaveSettings}
+              onToggleReady={game.status === 'waiting' ? handleToggleReady : undefined}
             />
           ) : null}
 
@@ -1350,6 +1396,10 @@ function GamePage() {
               boardSize={game.boardSize}
               currentRoundStartedAt={game.startedAt}
               gameId={game.gameId}
+              currentPlayerId={player.playerId}
+              isReadyPending={isReadyPending}
+              readyError={readyError}
+              onToggleReady={handleToggleReady}
               onWordHover={handleAllWordsWordHover}
               onWordHoverEnd={handleAllWordsWordHoverEnd}
             />

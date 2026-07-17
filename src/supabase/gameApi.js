@@ -267,6 +267,25 @@ export async function startGame(gameId) {
   return parseSingleResult(rpcResult.data, rpcResult.error, 'Failed to start game');
 }
 
+export async function updatePlayerReady(playerId, isReady) {
+  const normalizedPlayerId = String(playerId ?? '').trim();
+
+  if (!normalizedPlayerId) {
+    throw new Error('Player ID is required.');
+  }
+
+  const updateResult = await supabase
+    .from('boggle_players')
+    .update({
+      ready_at: isReady ? new Date().toISOString() : null,
+    })
+    .eq('id', normalizedPlayerId)
+    .select('*')
+    .single();
+
+  return parseSingleResult(updateResult.data, updateResult.error, 'Failed to update ready status');
+}
+
 export async function updateWaitingGameSettings(gameId, { boardSize, durationSeconds }) {
   const normalizedGameId = String(gameId ?? '').trim();
   const normalizedBoardSize = Number(boardSize);
